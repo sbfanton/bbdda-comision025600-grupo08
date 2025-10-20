@@ -31,12 +31,6 @@ El proyecto consiste en el desarrollo de un sistema de base de datos para una em
 
 ## 📁 Contenido del Repositorio
 
-Perfecto, gracias por la aclaración. Entonces conviene reescribir esa sección para que refleje con más precisión la estructura real del repo. Acá va una versión actualizada y clara de la sección **"Contenido del Repositorio"**, incluyendo los íconos y explicaciones:
-
----
-
-## 📁 Contenido del Repositorio
-
 El repositorio está organizado en las siguientes carpetas:
 
 ### 📦 Carpetas por entrega
