@@ -95,6 +95,7 @@ Estas carpetas incluyen:
 - Oliveto, Pablo Agustín / *Olivetoagustin*
 - Castro, Ezequiel Alejandro / *EzequielC-git*
 - Grance Zenteno, Lucas Rodrigo / *zetta-2*
+- Verzoletti, Nahuel Ariel / *NahuelVrzltt* (antiguo miembro)
 
 ---
 
