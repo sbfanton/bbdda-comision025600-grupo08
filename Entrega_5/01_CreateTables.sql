@@ -132,12 +132,14 @@ create table gestion.Pago(
 	id_unidad_funcional int not null,
 	id_consorcio_unidad_funcional int not null,
 	cbu_cvu_origen char(22) not null,
+	cbu_cvu_destino char(22) not null,
 	fecha datetime not null,
 	importe DECIMAL(10,2) NOT NULL,
 	constraint pago_pk primary key (id),
 	constraint pago_unidad_funcional_fk foreign key (id_unidad_funcional, id_consorcio_unidad_funcional) 
 		references gestion.Unidad_Funcional(id, id_consorcio),
-	constraint pago_cbu_cvu_ck check (cbu_cvu_origen LIKE '[0-9]{22}'),
+	constraint pago_cbu_cvu_origen_ck check (cbu_cvu_origen LIKE '[0-9]{22}'),
+	constraint pago_cbu_cvu_destino_ck check (cbu_cvu_destino LIKE '[0-9]{22}'),
 	constraint pago_importe_ck check (importe > 0)
 );
 go
