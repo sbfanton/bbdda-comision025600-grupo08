@@ -6,7 +6,7 @@ drop database if exists ConsorciosDB
 go
 
 create database ConsorciosDB 
-collate Modern_Spanish_CI_AI
+collate SQL_Latin1_General_CP1_CI_AS
 go
 
 use ConsorciosDB
