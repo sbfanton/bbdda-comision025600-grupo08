@@ -9,9 +9,6 @@ go
 
 -- Tipo_Documento
 EXEC gestion.sp_importar_tipos_documentos;
-/*EXEC gestion.sp_importar_tipos_documentos 
-     @path = N'/var/opt/mssql/pruebas/consorcios/tipos_documento.csv';
-    */
 
 -- Consorcio
 EXEC gestion.sp_importar_consorcios
@@ -28,3 +25,11 @@ EXEC gestion.sp_importar_personas
 -- Unidad_Funcional_Persona
 EXEC gestion.sp_asignar_personas_a_unidades
      @path = N'/var/opt/mssql/pruebas/Inquilino-propietarios-datos.csv';
+
+-- Cuenta_Bancaria_Asociada_UF
+EXEC gestion.sp_importar_cuentas_bancarias_asociadas_UF
+     @path = N'/var/opt/mssql/pruebas/Inquilino-propietarios-datos.csv';
+
+-- Pago
+EXEC gestion.sp_importar_pagos
+     @path = N'/var/opt/mssql/pruebas/pagos_consorcios.csv';
