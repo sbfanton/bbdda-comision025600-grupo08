@@ -2,14 +2,14 @@
 use master
 go
 
-drop database if exists ConsorciosDB
+drop database if exists Com5600G08
 go
 
-create database ConsorciosDB 
+create database Com5600G08 
 collate SQL_Latin1_General_CP1_CI_AS
 go
 
-use ConsorciosDB
+use Com5600G08
 go
 
 create schema gestion
@@ -54,7 +54,7 @@ go
 
 -- Tabla Consorcio
 create table gestion.Consorcio (
-	id int identity(1,1),
+	id int,
 	nombre varchar(100) not null,
 	calle varchar(100) not null,
 	nro int not null,
@@ -71,7 +71,7 @@ create table gestion.Consorcio (
 			cuit IS NULL OR 
 			cuit LIKE '[0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9]'
 		),
-	constraint consorcio_cbu_cvu_ck CHECK (cbu_cvu IS NULL OR (LEN(cbu_cvu) = 22 AND cbu_cvu NOT LIKE '%[^0-9]%'))
+	constraint consorcio_cbu_cvu_ck CHECK (cbu_cvu IS NULL OR (LEN(cbu_cvu) = 22 AND cbu_cvu NOT LIKE '%[^0-9]%')),
 );
 go
 
@@ -122,7 +122,6 @@ create table gestion.Cuenta_Bancaria_Asociada_UF(
 	id_unidad_funcional int not null,
 	id_consorcio_unidad_funcional int not null,
 	cbu_cvu char(22) not null,
-	banco varchar(50),
 	constraint cuenta_bancaria_asociada_UF_pk primary key (id_unidad_funcional, id_consorcio_unidad_funcional, cbu_cvu),
 	constraint cuenta_bancaria_asociada_UF_fk foreign key (id_unidad_funcional, id_consorcio_unidad_funcional) 
 		references gestion.Unidad_Funcional(id, id_consorcio),
@@ -157,38 +156,26 @@ create table gestion.Tipo_Gasto (
 go
 
 
--- Tabla Expensa
-create table gestion.Expensa (
-	id INT IDENTITY(1,1) not null,
-    id_consorcio INT NOT NULL,
-    mes TINYINT NOT NULL,
-    anio SMALLINT NOT NULL,
-    ingresos DECIMAL(12,2) NOT NULL, -- total de ingresos del mes
-    estado_financiero_inicial DECIMAL(12,2), -- este campo y siguientes pueden ir en null hasta que tabla gastos este completa con gastos del mes
-    estado_financiero_final DECIMAL(12,2),
-    monto_total_ordinarias DECIMAL(12,2),
-    monto_total_extraordinarias DECIMAL(12,2),
-    constraint expensa_pk primary key (id),
-    CONSTRAINT expensa_consorcio_fk FOREIGN KEY (id_consorcio) 
-    	REFERENCES gestion.Consorcio(id),
-    constraint expensa_mes_ck check (mes BETWEEN 1 AND 12),
-    constraint expensa_anio_ck check (anio BETWEEN 2000 AND 2100),
-    constraint expensa_ingresos_ck CHECK (ingresos >= 0),
-    constraint expensa_estado_financiero_inicial_ck CHECK (estado_financiero_inicial >= 0),
-    constraint expensa_estado_financiero_final_ck CHECK (estado_financiero_final >= 0),
-    constraint expensa_monto_total_ordinarias_ck CHECK (monto_total_ordinarias >= 0),
-    constraint expensa_monto_total_extraordinarias_ck CHECK (monto_total_extraordinarias >= 0),
-    CONSTRAINT expensa_uq_periodo UNIQUE (id_consorcio, mes, anio) -- una expensa por mes y consorcio
+-- Tabla Proveedor
+create table gestion.Proveedor (
+	id int identity(1,1) not null,
+	id_tipo_gasto int not null,
+	id_consorcio int not null,
+	nombre varchar(100) not null,
+	detalle varchar(200) null,
+	constraint proveedor_pk primary key (id),
+	constraint proveedor_id_tipo_gasto_fk foreign key (id_tipo_gasto) references gestion.Tipo_Gasto(id),
+	constraint proveedor_id_consorcio_fk foreign key (id_consorcio) references gestion.Consorcio(id)
 );
 go
-
 
 -- Tabla Gasto
 create table gestion.Gasto (
 	id INT IDENTITY(1,1),
     id_tipo_gasto INT NOT NULL,
-    id_expensa INT NOT NULL,
-    proveedor VARCHAR(100) NULL,
+	id_consorcio INT NOT NULL,
+    mes TINYINT NOT NULL,
+    anio SMALLINT NOT NULL,
     nro_factura VARCHAR(30) NULL, 
     importe DECIMAL(12,2) NOT NULL,
     descripcion VARCHAR(200) NULL,
@@ -196,7 +183,10 @@ create table gestion.Gasto (
     nro_cuota SMALLINT NULL,
     constraint gasto_pk primary key (id),
     CONSTRAINT gasto_tipo_fk FOREIGN KEY (id_tipo_gasto) REFERENCES gestion.Tipo_Gasto(id),
-    CONSTRAINT gasto_expensa_fk FOREIGN KEY (id_expensa) REFERENCES gestion.Expensa(id),
+	CONSTRAINT gasto_consorcio_fk FOREIGN KEY (id_consorcio) 
+    	REFERENCES gestion.Consorcio(id),
+    constraint gasto_mes_ck check (mes BETWEEN 1 AND 12),
+    constraint gasto_anio_ck check (anio BETWEEN 2000 AND 2100),
     constraint gasto_nro_factura_ck CHECK (nro_factura NOT LIKE '%[^0-9A-Za-z/-]%'), -- solo números, letras, / o -
     constraint gasto_importe_ck CHECK (importe >= 0),
     constraint gasto_cuotas_totales_ck CHECK (cuotas_totales >= 1),
@@ -209,25 +199,3 @@ create table gestion.Gasto (
 );
 go
 
-
--- Tabla Prorrateo
-create table gestion.Prorrateo(
-	id_expensa INT NOT NULL,
-    id_unidad_funcional INT NOT NULL,
-    id_consorcio_unidad_funcional INT NULL, 
-    saldo_abonado DECIMAL(12,2) NOT NULL,
-    monto_ordinarias DECIMAL(12,2) NOT NULL,
-    monto_extraordinarias DECIMAL(12,2) NOT NULL,
-    deuda DECIMAL(12,2) NOT NULL,
-    interes_mora DECIMAL(12,2) NOT NULL CHECK (interes_mora >= 0),
-    CONSTRAINT prorrateo_pk PRIMARY KEY (id_expensa, id_unidad_funcional),
-    CONSTRAINT prorrateo_expensa_fk FOREIGN KEY (id_expensa) REFERENCES gestion.Expensa(id),
-    CONSTRAINT prorrateo_unidad_funcional_fk FOREIGN KEY (id_unidad_funcional, id_consorcio_unidad_funcional) 
-    	REFERENCES gestion.Unidad_Funcional(id, id_consorcio),
-    constraint prorrateo_saldo_abonado_ck CHECK (saldo_abonado >= 0),
-    constraint prorrateo_monto_ordinarias_ck CHECK (monto_ordinarias >= 0),
-    constraint prorrateo_monto_extraordinarias_ck CHECK (monto_extraordinarias >= 0),
-    constraint prorrateo_deuda_ck CHECK (deuda >= 0),
-    constraint prorrateo_interes_mora_ck CHECK (interes_mora >= 0)
-);
-go

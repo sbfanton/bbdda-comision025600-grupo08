@@ -1,4 +1,4 @@
-use ConsorciosDB
+use Com5600G08
 go
 
 ----------------------------------------------------
@@ -26,25 +26,34 @@ go
 -- Consorcios (con generacion aleatoria de datos faltantes)
 
 CREATE OR ALTER PROCEDURE gestion.sp_importar_consorcios
-    @path NVARCHAR(500)
+    @pathConsorcios NVARCHAR(500),
+    @pathProveedores NVARCHAR(500)
 AS
 BEGIN
     SET NOCOUNT ON;
 
     IF OBJECT_ID('tempdb..#ConsorcioOrigen') IS NOT NULL DROP TABLE #ConsorcioOrigen;
+    IF OBJECT_ID('tempdb..#ConsorcioProveedores') IS NOT NULL DROP TABLE #ConsorcioProveedores;
 
     CREATE TABLE #ConsorcioOrigen (
-        Consorcio VARCHAR(50),
-        NombreConsorcio VARCHAR(100),
-        Domicilio VARCHAR(150),
+        Consorcio NVARCHAR(50),
+        NombreConsorcio NVARCHAR(100),
+        Domicilio NVARCHAR(150),
         CantUnidades int,
         MtsTotales int
+    );
+
+    CREATE TABLE #ConsorcioProveedores (
+        tipoGasto NVARCHAR(100),
+        proveedor NVARCHAR(100),
+        cuenta NVARCHAR(100),
+        consorcio NVARCHAR(100)
     );
 
     DECLARE @sql NVARCHAR(MAX);
     SET @sql = N'
         BULK INSERT #ConsorcioOrigen
-        FROM ''' + @path + '''
+        FROM ''' + @pathConsorcios + '''
         WITH (
             FIRSTROW = 2,
             FIELDTERMINATOR = '';'',
@@ -52,8 +61,20 @@ BEGIN
         );';
     EXEC sp_executesql @sql;
 
+    DECLARE @sql2 NVARCHAR(MAX);
+    SET @sql2 = N'
+        BULK INSERT #ConsorcioProveedores
+        FROM ''' + @pathProveedores + '''
+        WITH (
+            FIRSTROW = 2,
+            FIELDTERMINATOR = '';'',
+            ROWTERMINATOR = ''\r''
+        );';
+    EXEC sp_executesql @sql2;
+
    ALTER TABLE #ConsorcioOrigen
     ADD 
+        id int,
         calle VARCHAR(100),
         nro INT,
         localidad VARCHAR(100),
@@ -63,6 +84,12 @@ BEGIN
         banco VARCHAR(50),
         cbu_cvu CHAR(22);
 
+    -- Desglosamos el id
+    UPDATE #ConsorcioOrigen 
+    SET 
+        id = TRY_CAST(SUBSTRING(consorcio, CHARINDEX(' ', consorcio) + 1, len(consorcio)) AS INT);
+
+    -- Desglosamos la calle y el nro de la direccion
    UPDATE #ConsorcioOrigen
     SET 
         nro = TRY_CAST(REVERSE(LEFT(REVERSE(Domicilio), CHARINDEX(' ', REVERSE(Domicilio)) - 1)) AS INT),
@@ -77,9 +104,13 @@ BEGIN
         razon_social = NombreConsorcio + ' S.A.';
 
     ;
+
+    -- Generamos CBUs aleatorios
+    UPDATE #ConsorcioOrigen
+    SET cbu_cvu = RIGHT('0000000000000000000000' + CAST(ABS(CHECKSUM(NEWID())) AS VARCHAR(22)), 22);
     
     -- Generamos CUITs aleatorios 
-    WITH CUITS AS (
+    ;WITH CUITS AS (
         SELECT 
             NombreConsorcio,
             cuit = '30-' + 
@@ -92,23 +123,26 @@ BEGIN
     FROM #ConsorcioOrigen c
     JOIN CUITS cu ON c.NombreConsorcio = cu.NombreConsorcio;
 
-    -- Generamos bancos aleatorios
-    UPDATE #ConsorcioOrigen
-    SET banco =
-        CASE ABS(CHECKSUM(NEWID())) % 4
-            WHEN 0 THEN 'Banco Nación'
-            WHEN 1 THEN 'Banco Galicia'
-            WHEN 2 THEN 'Banco BBVA'
-            ELSE 'Banco Santander'
-        END
+	;WITH Bancos AS (
+	    SELECT
+	        c.consorcio,
+	        SUBSTRING(C.PROVEEDOR, 1, CHARINDEX('-', c.proveedor) - 1) AS banco
+	    FROM #ConsorcioProveedores c
+	    WHERE c.proveedor like '%banco%'
+	)
+	-- Actualizar banco
+	UPDATE o
+	SET 
+	    banco = b.banco
+	FROM #ConsorcioOrigen o
+	INNER JOIN Bancos b 
+	    ON o.NombreConsorcio = b.consorcio;
 
-    -- Generamos CBUs aleatorios
-    UPDATE #ConsorcioOrigen
-    SET cbu_cvu = RIGHT('0000000000000000000000' + CAST(ABS(CHECKSUM(NEWID())) AS VARCHAR(22)), 22)
 
    
-    INSERT INTO gestion.Consorcio (nombre, calle, nro, localidad, provincia, cuit, razon_social, banco, cbu_cvu)
+    INSERT INTO gestion.Consorcio (id, nombre, calle, nro, localidad, provincia, cuit, razon_social, banco, cbu_cvu)
     SELECT 
+        id, 
         NombreConsorcio,
         calle,
         nro,
@@ -124,6 +158,7 @@ BEGIN
     )
 
     drop table #ConsorcioOrigen
+    drop table #ConsorcioProveedores
 
     PRINT 'Carga completada correctamente.'
 END
@@ -452,28 +487,13 @@ BEGIN
             ROWTERMINATOR = ''\n''
         );';
     EXEC sp_executesql @sql;
-   
-   -- Genero aleatoriamente el banco
-   /*
-   ALTER TABLE #tmp_personas ADD banco VARCHAR(50);
-  	UPDATE #tmp_personas
-    SET banco =
-        CASE ABS(CHECKSUM(NEWID())) % 4
-            WHEN 0 THEN 'Banco Nación'
-            WHEN 1 THEN 'Banco Galicia'
-            WHEN 2 THEN 'Banco BBVA'
-            ELSE 'Banco Santander'
-        END
-    */
-    ------
         
    	    BEGIN TRY
         ;WITH ufs_por_personas AS (
             SELECT 
                 ufp.id_unidad_funcional,
                 ufp.id_consorcio_unidad_funcional,
-                t.cvu_cbu--,
-                --t.banco
+                t.cvu_cbu
             FROM #tmp_personas t
             INNER JOIN gestion.Unidad_Funcional_Persona ufp 
                 ON ufp.nro_doc_persona = CAST(t.dni AS INT)
@@ -481,12 +501,10 @@ BEGIN
         ) 
         
         INSERT INTO gestion.Cuenta_Bancaria_Asociada_UF
-            (id_unidad_funcional, id_consorcio_unidad_funcional, cbu_cvu, banco)
+            (id_unidad_funcional, id_consorcio_unidad_funcional, cbu_cvu)
         SELECT u.id_unidad_funcional,
                u.id_consorcio_unidad_funcional,
-               u.cvu_cbu,
-               --u.banco
-               null
+               u.cvu_cbu
         FROM ufs_por_personas u;
     END TRY
     BEGIN CATCH
@@ -582,3 +600,166 @@ BEGIN
 END
 GO
    
+----------------------------------------------------
+----------------------------------------------------
+
+-- Tipo_Gasto
+-- Proveedor
+
+CREATE OR ALTER PROCEDURE gestion.sp_importar_tipos_gastos_y_proveedores
+    @path NVARCHAR(4000),
+    @extraordinarios BIT = 0
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF OBJECT_ID('tempdb..#tmp_tipos_gastos') IS NOT NULL DROP TABLE #tmp_tipos_gastos;
+
+    CREATE TABLE #tmp_tipos_gastos (
+        tipoGasto NVARCHAR(100),
+        proveedor NVARCHAR(100),
+        detalle NVARCHAR(100),
+        consorcio NVARCHAR(100)
+    );
+
+    DECLARE @sql NVARCHAR(MAX);
+    SET @sql = N'
+        BULK INSERT #tmp_tipos_gastos
+        FROM ''' + @path + '''
+        WITH (
+            FIRSTROW = 2,
+            FIELDTERMINATOR = '';'',
+            ROWTERMINATOR = ''\r''
+        );';
+    EXEC sp_executesql @sql;
+
+    ALTER TABLE #tmp_tipos_gastos 
+    ADD es_extraordinario BIT;
+
+    update #tmp_tipos_gastos set es_extraordinario = @extraordinarios
+
+    -- Tipo_Gasto
+    INSERT INTO gestion.Tipo_Gasto (nombre, es_extraordinario)
+    SELECT distinct tipoGasto, es_extraordinario
+    FROM #tmp_tipos_gastos t;
+
+    -- Proveedor
+    with Prov as (
+        select 
+        tg.id as id_tipo_gasto,
+        c.id as id_consorcio,
+        t.proveedor as proveedor, 
+        t.detalle as detalle
+        from #tmp_tipos_gastos t 
+        inner join gestion.Tipo_Gasto tg on t.tipoGasto = tg.nombre 
+        inner join gestion.Consorcio c on t.consorcio = c.nombre 
+    )
+    insert into gestion.Proveedor(id_tipo_gasto, id_consorcio, nombre, detalle) 
+    select id_tipo_gasto, id_consorcio, proveedor, detalle from Prov;
+
+    drop table #tmp_tipos_gastos
+
+END
+GO
+
+----------------------------------------------------
+----------------------------------------------------
+
+-- Gasto
+
+create or alter procedure gestion.sp_importar_gastos_ordinarios_anio_actual
+	@jsonData NVARCHAR(MAX)
+AS 
+BEGIN 
+	
+	IF OBJECT_ID('tempdb..#GastosJson') IS NOT NULL DROP TABLE #GastosJson
+	IF OBJECT_ID('tempdb..#Mes') IS NOT NULL DROP TABLE #Mes
+	
+	declare @anio_actual int = YEAR(GETDATE())
+	
+	create table #Mes (nro int, mes varchar(20), anio int)
+	INSERT INTO #Mes (nro, mes, anio) VALUES
+	    (1, 'enero', @anio_actual),
+	    (2, 'febrero', @anio_actual),
+	    (3, 'marzo', @anio_actual),
+	    (4, 'abril', @anio_actual),
+	    (5, 'mayo', @anio_actual),
+	    (6, 'junio', @anio_actual),
+	    (7, 'julio', @anio_actual),
+	    (8, 'agosto', @anio_actual),
+	    (9, 'septiembre', @anio_actual),
+	    (10, 'octubre', @anio_actual),
+	    (11, 'noviembre', @anio_actual),
+	    (12, 'diciembre', @anio_actual)
+	
+	SELECT 
+	    JSON_VALUE(j.value, '$."Nombre del consorcio"') AS NombreConsorcio,
+	    LTRIM(RTRIM(LOWER(JSON_VALUE(j.value, '$."Mes"')))) AS Mes,
+	    JSON_VALUE(j.value, '$."BANCARIOS"') AS GastosBancarios,
+	    JSON_VALUE(j.value, '$."ADMINISTRACION"') AS GastosAdministracion,
+	    JSON_VALUE(j.value, '$."LIMPIEZA"') AS GastosLimpieza,
+	    JSON_VALUE(j.value, '$."SEGUROS"') AS GastosSeguros,
+	    JSON_VALUE(j.value, '$."GASTOS GENERALES"') AS GastosGenerales,
+	    JSON_VALUE(j.value, '$."SERVICIOS PUBLICOS-Agua"') AS GastosAgua,
+	    JSON_VALUE(j.value, '$."SERVICIOS PUBLICOS-Luz"') AS GastosLuz
+	INTO #GastosJson
+	FROM OPENJSON(@jsonData) AS j
+
+	 
+	;with GastoMes as (
+	select
+		c.id as consorcio,
+		m.nro as mes,
+		m.anio as anio,
+		g.GastosBancarios,
+		g.GastosAdministracion,
+		g.GastosLimpieza,
+		g.GastosSeguros,
+		g.GastosGenerales,
+		g.GastosAgua,
+		g.GastosLuz
+	from #GastosJson g 
+	inner join gestion.Consorcio c on g.NombreConsorcio = c.nombre
+	inner join #Mes m on g.Mes = m.mes
+	)
+	INSERT INTO gestion.Gasto (
+		id_tipo_gasto, 
+		id_consorcio,
+		mes,
+		anio,
+		nro_factura, 
+		importe, 
+		descripcion, 
+		cuotas_totales, 
+		nro_cuota)
+	SELECT 
+	    tg.id AS id_tipo_gasto,
+	    g.consorcio,
+	    g.mes,
+	    g.anio,
+	    null,
+	    CAST(REPLACE(x.importe, ',', '') AS DECIMAL(12,2)) AS importe,
+	    x.tipo_gasto AS descripcion,
+	    null,
+	    null
+	FROM GastoMes g
+	CROSS APPLY (
+	    VALUES
+	        ('GASTOS BANCARIOS', g.GastosBancarios),
+	        ('GASTOS DE ADMINISTRACION', g.GastosAdministracion),
+	        ('GASTOS DE LIMPIEZA', g.GastosLimpieza),
+	        ('SEGUROS', g.GastosSeguros),
+	        ('GASTOS GENERALES', g.GastosGenerales),
+	        ('SERVICIOS PUBLICOS', g.GastosAgua),
+	        ('SERVICIOS PUBLICOS', g.GastosLuz)
+	) AS x(tipo_gasto, importe)
+	INNER JOIN gestion.Tipo_Gasto tg ON tg.nombre = x.tipo_gasto
+	WHERE TRY_CAST(REPLACE(x.importe, ',', '') AS DECIMAL(12,2)) IS NOT NULL
+	  AND TRY_CAST(REPLACE(x.importe, ',', '') AS DECIMAL(12,2)) > 0;
+	
+	drop table #Mes
+	drop table #GastosJson
+END
+GO
+
+  
