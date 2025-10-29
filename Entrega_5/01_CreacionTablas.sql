@@ -6,7 +6,7 @@ drop database if exists Com5600G08
 go
 
 create database Com5600G08 
-collate SQL_Latin1_General_CP1_CI_AS
+--collate SQL_Latin1_General_CP1_CI_AS
 go
 
 use Com5600G08
