@@ -24,16 +24,11 @@ EXEC gestion.sp_importar_unidades_funcionales
      @path = N'/var/opt/mssql/pruebas/UF por consorcio.txt'
 
 -- Persona
-EXEC gestion.sp_importar_personas
-     @path = N'/var/opt/mssql/pruebas/Inquilino-propietarios-datos.csv';
-
 -- Unidad_Funcional_Persona
-EXEC gestion.sp_asignar_personas_a_unidades
-     @path = N'/var/opt/mssql/pruebas/Inquilino-propietarios-datos.csv';
-
 -- Cuenta_Bancaria_Asociada_UF
-EXEC gestion.sp_importar_cuentas_bancarias_asociadas_UF
-     @path = N'/var/opt/mssql/pruebas/Inquilino-propietarios-datos.csv';
+EXEC gestion.sp_importar_personas
+     @pathPersonasDatos = N'/var/opt/mssql/pruebas/Inquilino-propietarios-datos.csv',
+     @pathPersonasUF = N'/var/opt/mssql/pruebas/Inquilino-propietarios-UF.csv';
 
 -- Pago
 EXEC gestion.sp_importar_pagos
