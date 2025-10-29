@@ -9,14 +9,25 @@ go
 create or alter procedure gestion.sp_importar_tipos_documentos 
 AS 
 BEGIN
-    insert into gestion.Tipo_Documento (id, descripcion) values 
-    ('DNI',  'Documento Nacional de Identidad'),
-    ('LC',   'Libreta Cívica'),
-    ('LE',   'Libreta de Enrolamiento'),
-    ('PAS',  'Pasaporte'),
-    ('CI',   'Cédula de Identidad'),
-    ('CUIL', 'Código Único de Identificación Laboral'),
-    ('CUIT', 'Código Único de Identificación Tributaria');
+     SET NOCOUNT ON;
+
+    INSERT INTO gestion.Tipo_Documento (id, descripcion)
+    SELECT v.id, v.descripcion
+    FROM (
+        VALUES
+            ('DNI',  'Documento Nacional de Identidad'),
+            ('LC',   'Libreta Cívica'),
+            ('LE',   'Libreta de Enrolamiento'),
+            ('PAS',  'Pasaporte'),
+            ('CI',   'Cédula de Identidad'),
+            ('CUIL', 'Código Único de Identificación Laboral'),
+            ('CUIT', 'Código Único de Identificación Tributaria')
+    ) AS v(id, descripcion)
+    WHERE NOT EXISTS (
+        SELECT 1 
+        FROM gestion.Tipo_Documento td 
+        WHERE td.id = v.id
+    );
 END
 go
 
@@ -100,13 +111,13 @@ BEGIN
     UPDATE #ConsorcioOrigen
     SET 
         localidad = 'Ciudad Autónoma de Buenos Aires',
-        provincia = 'Ciudad Autónoma de Buenos Aires',
-        razon_social = NombreConsorcio + ' S.A.';
+        provincia = 'Ciudad Autónoma de Buenos Aires';
+        --razon_social = NombreConsorcio + ' S.A.';
 
     ;
 
     -- Generamos CBUs aleatorios
-    UPDATE #ConsorcioOrigen
+    /*UPDATE #ConsorcioOrigen
     SET cbu_cvu = RIGHT('0000000000000000000000' + CAST(ABS(CHECKSUM(NEWID())) AS VARCHAR(22)), 22);
     
     -- Generamos CUITs aleatorios 
@@ -121,7 +132,7 @@ BEGIN
     UPDATE c
     SET c.cuit = cu.cuit
     FROM #ConsorcioOrigen c
-    JOIN CUITS cu ON c.NombreConsorcio = cu.NombreConsorcio;
+    JOIN CUITS cu ON c.NombreConsorcio = cu.NombreConsorcio;*/
 
 	;WITH Bancos AS (
 	    SELECT
@@ -154,7 +165,9 @@ BEGIN
         cbu_cvu
     FROM #ConsorcioOrigen o
     WHERE NOT EXISTS (
-        SELECT 1 FROM gestion.Consorcio c WHERE c.nombre = o.NombreConsorcio
+        SELECT 1 FROM gestion.Consorcio c 
+        WHERE c.id = o.id
+        AND c.nombre = o.NombreConsorcio
     )
 
     drop table #ConsorcioOrigen
@@ -228,7 +241,12 @@ BEGIN
         AND tmp.piso IS NOT NULL
         AND tmp.departamento IS NOT NULL
         AND ISNUMERIC(REPLACE(tmp.coeficiente, ',', '.')) = 1
-        AND ISNUMERIC(REPLACE(tmp.m2_unidad_funcional, ',', '.')) = 1
+        AND ISNUMERIC(REPLACE(tmp.m2_unidad_funcional, ',', '.')) = 1 
+        AND NOT EXISTS (
+            select 1 from gestion.Unidad_Funcional u 
+            where u.id = tmp.nroUnidadFuncional
+            and u.id_consorcio = c.id
+        )
 
     DROP TABLE #tmp_unidades
 END
@@ -241,7 +259,6 @@ GO
 -- Unidad_Funcional_Persona
 -- Cuenta_Bancaria_Asociada_UF
 
--- FALTA !!
 CREATE OR ALTER PROCEDURE gestion.sp_importar_personas
     @pathPersonasDatos NVARCHAR(4000),
     @pathPersonasUF NVARCHAR(4000)
@@ -301,12 +318,39 @@ BEGIN
     p.cvu_cbu,
     p.inquilino,
     r.consorcio,
+    c.id as id_consorcio,
     r.uf,
     r.piso,
     r.depto
    into #PersonasUF 
    from #tmp_personas p 
    inner join #tmp_personas_UF r on p.cvu_cbu = r.cvu_cbu
+   inner join gestion.Consorcio c on c.nombre = r.consorcio
+   
+   
+   
+    select 
+   	p.nombre,
+    p.apellido,
+    p.dni,
+    p.email_personal,
+    p.telefono_contacto,
+    p.cvu_cbu,
+     CASE
+        WHEN LTRIM(RTRIM(REPLACE(REPLACE(p.inquilino, CHAR(13), ''), CHAR(10), ''))) = '1' THEN 1
+        WHEN LTRIM(RTRIM(REPLACE(REPLACE(p.inquilino, CHAR(13), ''), CHAR(10), ''))) = '0' THEN 0
+        ELSE NULL
+    END AS inquilino,
+    p.consorcio,
+    p.id_consorcio,
+    p.uf,
+    p.piso,
+    p.depto,
+    ROW_NUMBER() over (partition by p.dni order by p.apellido) as dni_rn,
+    ROW_NUMBER() over (partition by p.cvu_cbu, p.consorcio, p.uf order by p.consorcio) as cbu_uf_rn
+   into #PersonasUFConRN 
+   from #PersonasUF p
+   
 
  	-- Insercion en tabla Persona
     INSERT INTO gestion.Persona (
@@ -324,8 +368,11 @@ BEGIN
         LTRIM(RTRIM(p.apellido)) AS apellido,
         LTRIM(RTRIM(p.email_personal)) AS email,
         LTRIM(RTRIM(p.telefono_contacto)) AS telefono
-    FROM #PersonasUF p
-    WHERE p.dni IS NOT NULL
+    FROM #PersonasUFConRN p
+    WHERE 
+    p.dni_rn = 1 
+    AND p.cbu_uf_rn = 1
+    AND p.dni IS NOT NULL
     AND p.dni <> ''
     AND ISNUMERIC(p.dni) = 1
     AND NOT EXISTS (
@@ -333,14 +380,71 @@ BEGIN
         FROM gestion.Persona per
         WHERE per.nro_doc = CAST(p.dni AS INT)
             AND per.id_tipo_documento = 'DNI'
-    );
+    )
    
-   	DROP TABLE #PersonasUF;
-    DROP TABLE #tmp_personas;
-    DROP TABLE #tmp_personas_UF;
-END;
+   
+   -- Insercion en tabla Unidad_Funcional_Persona
+   insert into gestion.Unidad_Funcional_Persona (
+   		id_unidad_funcional,
+   		id_consorcio_unidad_funcional,
+   		id_tipo_doc_persona,
+   		nro_doc_persona,
+   		fecha_desde,
+   		fecha_hasta,
+   		es_inquilino
+   )   
+   	SELECT
+   		CAST(p.uf AS INT) AS id_unidad_funcional,
+   		CAST(p.id_consorcio AS INT) AS id_consorcio_unidad_funcional,
+   		'DNI' AS id_tipo_documento,
+        CAST(p.dni AS INT) AS nro_doc,
+        null,
+        null,
+        CAST(p.inquilino as BIT) as es_inquilino
+    FROM #PersonasUFConRN p
+    WHERE 
+    p.dni_rn = 1 
+    AND p.cbu_uf_rn = 1
+    AND p.dni IS NOT NULL
+    AND p.dni <> ''
+    AND ISNUMERIC(p.dni) = 1
+    AND NOT EXISTS (
+        SELECT 1
+        FROM gestion.Unidad_Funcional_Persona uf
+        WHERE uf.nro_doc_persona = CAST(p.dni AS INT)
+            AND uf.id_unidad_funcional = CAST(p.uf AS INT)
+            AND uf.id_consorcio_unidad_funcional = CAST(p.id_consorcio AS INT)
+    )
+   
+   
+   insert into gestion.Cuenta_Bancaria_Asociada_UF  (
+   		id_unidad_funcional,
+   		id_consorcio_unidad_funcional,
+   		cbu_cvu
+   )   
+   	SELECT
+   		CAST(p.uf AS INT) AS id_unidad_funcional,
+   		CAST(p.id_consorcio AS INT) AS id_consorcio_unidad_funcional,
+   		p.cvu_cbu
+    FROM #PersonasUFConRN p
+    WHERE 
+    p.dni_rn = 1 
+    AND p.cbu_uf_rn = 1
+    AND NOT EXISTS (
+        SELECT 1
+        FROM gestion.Cuenta_Bancaria_Asociada_UF uf
+        WHERE uf.cbu_cvu = p.cvu_cbu
+            AND uf.id_unidad_funcional = CAST(p.uf AS INT)
+            AND uf.id_consorcio_unidad_funcional = CAST(p.id_consorcio AS INT)
+    )
+   
+   
+   	DROP TABLE #PersonasUFConRN
+   	DROP TABLE #PersonasUF
+    DROP TABLE #tmp_personas
+    DROP TABLE #tmp_personas_UF
+END
 GO
-
 
 ----------------------------------------------------
 ----------------------------------------------------
@@ -468,8 +572,12 @@ BEGIN
 
     -- Tipo_Gasto
     INSERT INTO gestion.Tipo_Gasto (nombre, es_extraordinario)
-    SELECT distinct tipoGasto, es_extraordinario
-    FROM #tmp_tipos_gastos t;
+    SELECT distinct t.tipoGasto, t.es_extraordinario
+    FROM #tmp_tipos_gastos t 
+    where not exists (
+        select 1 from gestion.Tipo_Gasto g
+        where g.nombre = t.tipoGasto
+    );
 
     -- Proveedor
     with Prov as (
@@ -483,7 +591,12 @@ BEGIN
         inner join gestion.Consorcio c on t.consorcio = c.nombre 
     )
     insert into gestion.Proveedor(id_tipo_gasto, id_consorcio, nombre, detalle) 
-    select id_tipo_gasto, id_consorcio, proveedor, detalle from Prov;
+    select pr.id_tipo_gasto, pr.id_consorcio, pr.proveedor, pr.detalle from Prov pr
+    where not exists (
+        select 1 from gestion.Proveedor p
+        where p.id_tipo_gasto = pr.id_tipo_gasto 
+        and p.id_consorcio = pr.id_consorcio 
+    );
 
     drop table #tmp_tipos_gastos
 
