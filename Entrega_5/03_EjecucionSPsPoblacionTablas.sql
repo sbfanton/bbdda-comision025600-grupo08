@@ -5,6 +5,10 @@ go
 
 --- Cargamos tablas con datos ---
 
+/*
+Para sus pruebas en local, deben reemplazar las rutas a los archivos por las de sus computadoras
+*/
+
 ----------------------------------------------------
 
 -- Tipo_Documento
