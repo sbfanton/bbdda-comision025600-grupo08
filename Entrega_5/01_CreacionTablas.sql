@@ -171,6 +171,7 @@ go
 
 
 -- Tabla Expensa
+/*
 create table gestion.Expensa (
 	id INT IDENTITY(1,1) not null,
     id_consorcio INT NOT NULL,
@@ -194,13 +195,16 @@ create table gestion.Expensa (
     CONSTRAINT expensa_uq_periodo UNIQUE (id_consorcio, mes, anio) -- una expensa por mes y consorcio
 );
 go
-
+*/
 
 -- Tabla Gasto
 create table gestion.Gasto (
 	id INT IDENTITY(1,1),
     id_tipo_gasto INT NOT NULL,
-    id_expensa INT NOT NULL,
+    --id_expensa INT NOT NULL,
+	id_consorcio INT NOT NULL,
+    mes TINYINT NOT NULL,
+    anio SMALLINT NOT NULL,
     nro_factura VARCHAR(30) NULL, 
     importe DECIMAL(12,2) NOT NULL,
     descripcion VARCHAR(200) NULL,
@@ -208,7 +212,11 @@ create table gestion.Gasto (
     nro_cuota SMALLINT NULL,
     constraint gasto_pk primary key (id),
     CONSTRAINT gasto_tipo_fk FOREIGN KEY (id_tipo_gasto) REFERENCES gestion.Tipo_Gasto(id),
-    CONSTRAINT gasto_expensa_fk FOREIGN KEY (id_expensa) REFERENCES gestion.Expensa(id),
+    --CONSTRAINT gasto_expensa_fk FOREIGN KEY (id_expensa) REFERENCES gestion.Expensa(id),
+	CONSTRAINT gasto_consorcio_fk FOREIGN KEY (id_consorcio) 
+    	REFERENCES gestion.Consorcio(id),
+    constraint gasto_mes_ck check (mes BETWEEN 1 AND 12),
+    constraint gasto_anio_ck check (anio BETWEEN 2000 AND 2100),
     constraint gasto_nro_factura_ck CHECK (nro_factura NOT LIKE '%[^0-9A-Za-z/-]%'), -- solo números, letras, / o -
     constraint gasto_importe_ck CHECK (importe >= 0),
     constraint gasto_cuotas_totales_ck CHECK (cuotas_totales >= 1),
@@ -223,6 +231,7 @@ go
 
 
 -- Tabla Prorrateo
+/*
 create table gestion.Prorrateo(
 	id_expensa INT NOT NULL,
     id_unidad_funcional INT NOT NULL,
@@ -243,3 +252,4 @@ create table gestion.Prorrateo(
     constraint prorrateo_interes_mora_ck CHECK (interes_mora >= 0)
 );
 go
+*/

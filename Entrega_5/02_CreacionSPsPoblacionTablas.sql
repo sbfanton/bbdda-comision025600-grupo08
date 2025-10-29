@@ -665,69 +665,217 @@ GO
 ----------------------------------------------------
 ----------------------------------------------------
 
--- Expensa
 -- Gasto
 
-DECLARE @jsonData NVARCHAR(MAX)
-SELECT @jsonData = BulkColumn FROM OPENROWSET(BULK '/var/opt/mssql/pruebas/Servicios.Servicios.json', SINGLE_CLOB) AS jsonn
---print(@jsonData)
+create or alter procedure gestion.sp_importar_gastos_ordinarios_anio_actual
+	@jsonData NVARCHAR(MAX)
+AS 
+BEGIN 
+	
+	IF OBJECT_ID('tempdb..#GastosJson') IS NOT NULL DROP TABLE #GastosJson
+	IF OBJECT_ID('tempdb..#Mes') IS NOT NULL DROP TABLE #Mes
+	
+	declare @anio_actual int = YEAR(GETDATE())
+	
+	create table #Mes (nro int, mes varchar(20), anio int)
+	INSERT INTO #Mes (nro, mes, anio) VALUES
+	    (1, 'enero', @anio_actual),
+	    (2, 'febrero', @anio_actual),
+	    (3, 'marzo', @anio_actual),
+	    (4, 'abril', @anio_actual),
+	    (5, 'mayo', @anio_actual),
+	    (6, 'junio', @anio_actual),
+	    (7, 'julio', @anio_actual),
+	    (8, 'agosto', @anio_actual),
+	    (9, 'septiembre', @anio_actual),
+	    (10, 'octubre', @anio_actual),
+	    (11, 'noviembre', @anio_actual),
+	    (12, 'diciembre', @anio_actual)
+	
+	SELECT 
+	    JSON_VALUE(j.value, '$."Nombre del consorcio"') AS NombreConsorcio,
+	    LTRIM(RTRIM(LOWER(JSON_VALUE(j.value, '$."Mes"')))) AS Mes,
+	    JSON_VALUE(j.value, '$."BANCARIOS"') AS GastosBancarios,
+	    JSON_VALUE(j.value, '$."ADMINISTRACION"') AS GastosAdministracion,
+	    JSON_VALUE(j.value, '$."LIMPIEZA"') AS GastosLimpieza,
+	    JSON_VALUE(j.value, '$."SEGUROS"') AS GastosSeguros,
+	    JSON_VALUE(j.value, '$."GASTOS GENERALES"') AS GastosGenerales,
+	    JSON_VALUE(j.value, '$."SERVICIOS PUBLICOS-Agua"') AS GastosAgua,
+	    JSON_VALUE(j.value, '$."SERVICIOS PUBLICOS-Luz"') AS GastosLuz
+	INTO #GastosJson
+	FROM OPENJSON(@jsonData) AS j
 
-IF OBJECT_ID('tempdb..#GastosJson') IS NOT NULL DROP TABLE #GastosJson
-IF OBJECT_ID('tempdb..#Mes') IS NOT NULL DROP TABLE #Mes
-
-create table #Mes (nro int, mes varchar(20), anio int)
-INSERT INTO #Mes (nro, mes, anio) VALUES
-    (1, 'enero', 2025),
-    (2, 'febrero', 2025),
-    (3, 'marzo', 2025),
-    (4, 'abril', 2025),
-    (5, 'mayo', 2025),
-    (6, 'junio', 2025),
-    (7, 'julio', 2025),
-    (8, 'agosto', 2025),
-    (9, 'septiembre', 2025),
-    (10, 'octubre', 2025),
-    (11, 'noviembre', 2025),
-    (12, 'diciembre', 2025)
-
-SELECT 
-    JSON_VALUE(j.value, '$."Nombre del consorcio"') AS NombreConsorcio,
-    LTRIM(RTRIM(LOWER(JSON_VALUE(j.value, '$."Mes"')))) AS Mes,
-    JSON_VALUE(j.value, '$."BANCARIOS"') AS GastosBancarios,
-    JSON_VALUE(j.value, '$."ADMINISTRACION"') AS GastosAdministracion,
-    JSON_VALUE(j.value, '$."LIMPIEZA"') AS GastosLimpieza,
-    JSON_VALUE(j.value, '$."SEGUROS"') AS GastosSeguros,
-    JSON_VALUE(j.value, '$."GASTOS GENERALES"') AS GastosGenerales,
-    JSON_VALUE(j.value, '$."SERVICIOS PUBLICOS-Agua"') AS GastosAgua,
-    JSON_VALUE(j.value, '$."SERVICIOS PUBLICOS-Luz"') AS GastosLuz
-INTO #GastosJson
-FROM OPENJSON(@jsonData) AS j
-
--- Ahora podés usar #GastosJson en otras consultas
-SELECT * FROM #GastosJson
-
-;with expensa as (
-select
-	c.id as id_consorcio,
-	m.nro as mes,
-	m.anio as anio
+	 
+	;with GastoMes as (
+	select
+		c.id as consorcio,
+		m.nro as mes,
+		m.anio as anio,
+		g.GastosBancarios,
+		g.GastosAdministracion,
+		g.GastosLimpieza,
+		g.GastosSeguros,
+		g.GastosGenerales,
+		g.GastosAgua,
+		g.GastosLuz
 	from #GastosJson g 
 	inner join gestion.Consorcio c on g.NombreConsorcio = c.nombre
 	inner join #Mes m on g.Mes = m.mes
-)
-insert into gestion.Expensa (
-	id_consorcio,
-    mes,
-    anio,
-    ingresos,
-    estado_financiero_inicial, 
-    estado_financiero_final,
-    monto_total_ordinarias,
-    monto_total_extraordinarias)
-select e.id_consorcio, e.mes, e.anio, null, null, null, null, null from expensa e 
-WHERE NOT EXISTS (
-        SELECT 1 FROM gestion.Expensa c WHERE c.id_consorcio = e.id_consorcio 
-        and c.mes = e.mes 
-        and c.anio = e.anio
-    )
+	)
+	INSERT INTO gestion.Gasto (
+		id_tipo_gasto, 
+		id_consorcio,
+		mes,
+		anio,
+		nro_factura, 
+		importe, 
+		descripcion, 
+		cuotas_totales, 
+		nro_cuota)
+	SELECT 
+	    tg.id AS id_tipo_gasto,
+	    g.consorcio,
+	    g.mes,
+	    g.anio,
+	    null,
+	    CAST(REPLACE(x.importe, ',', '') AS DECIMAL(12,2)) AS importe,
+	    x.tipo_gasto AS descripcion,
+	    null,
+	    null
+	FROM GastoMes g
+	CROSS APPLY (
+	    VALUES
+	        ('GASTOS BANCARIOS', g.GastosBancarios),
+	        ('GASTOS DE ADMINISTRACION', g.GastosAdministracion),
+	        ('GASTOS DE LIMPIEZA', g.GastosLimpieza),
+	        ('SEGUROS', g.GastosSeguros),
+	        ('GASTOS GENERALES', g.GastosGenerales),
+	        ('SERVICIOS PUBLICOS', g.GastosAgua),
+	        ('SERVICIOS PUBLICOS', g.GastosLuz)
+	) AS x(tipo_gasto, importe)
+	INNER JOIN gestion.Tipo_Gasto tg ON tg.nombre = x.tipo_gasto
+	WHERE TRY_CAST(REPLACE(x.importe, ',', '') AS DECIMAL(12,2)) IS NOT NULL
+	  AND TRY_CAST(REPLACE(x.importe, ',', '') AS DECIMAL(12,2)) > 0;
+	
+	drop table #Mes
+	drop table #GastosJson
+END
+GO
 
+  /*
+create or alter procedure gestion.sp_importar_gastos_ordinarios_anio_actual
+	@jsonData NVARCHAR(MAX)
+AS 
+BEGIN 
+
+	IF OBJECT_ID('tempdb..#GastosJson') IS NOT NULL DROP TABLE #GastosJson
+	IF OBJECT_ID('tempdb..#Mes') IS NOT NULL DROP TABLE #Mes
+	
+	declare @anio_actual int = YEAR(GETDATE())
+	
+	create table #Mes (nro int, mes varchar(20), anio int)
+	INSERT INTO #Mes (nro, mes, anio) VALUES
+	    (1, 'enero', @anio_actual),
+	    (2, 'febrero', @anio_actual),
+	    (3, 'marzo', @anio_actual),
+	    (4, 'abril', @anio_actual),
+	    (5, 'mayo', @anio_actual),
+	    (6, 'junio', @anio_actual),
+	    (7, 'julio', @anio_actual),
+	    (8, 'agosto', @anio_actual),
+	    (9, 'septiembre', @anio_actual),
+	    (10, 'octubre', @anio_actual),
+	    (11, 'noviembre', @anio_actual),
+	    (12, 'diciembre', @anio_actual)
+	
+	SELECT 
+	    JSON_VALUE(j.value, '$."Nombre del consorcio"') AS NombreConsorcio,
+	    LTRIM(RTRIM(LOWER(JSON_VALUE(j.value, '$."Mes"')))) AS Mes,
+	    JSON_VALUE(j.value, '$."BANCARIOS"') AS GastosBancarios,
+	    JSON_VALUE(j.value, '$."ADMINISTRACION"') AS GastosAdministracion,
+	    JSON_VALUE(j.value, '$."LIMPIEZA"') AS GastosLimpieza,
+	    JSON_VALUE(j.value, '$."SEGUROS"') AS GastosSeguros,
+	    JSON_VALUE(j.value, '$."GASTOS GENERALES"') AS GastosGenerales,
+	    JSON_VALUE(j.value, '$."SERVICIOS PUBLICOS-Agua"') AS GastosAgua,
+	    JSON_VALUE(j.value, '$."SERVICIOS PUBLICOS-Luz"') AS GastosLuz
+	INTO #GastosJson
+	FROM OPENJSON(@jsonData) AS j
+	
+	
+	;with expensa as (
+	select
+		c.id as id_consorcio,
+		m.nro as mes,
+		m.anio as anio
+		from #GastosJson g 
+		inner join gestion.Consorcio c on g.NombreConsorcio = c.nombre
+		inner join #Mes m on g.Mes = m.mes
+	)
+	insert into gestion.Expensa (
+		id_consorcio,
+	    mes,
+	    anio,
+	    ingresos,
+	    estado_financiero_inicial, 
+	    estado_financiero_final,
+	    monto_total_ordinarias,
+	    monto_total_extraordinarias)
+	select e.id_consorcio, e.mes, e.anio, null, null, null, null, null from expensa e 
+	WHERE NOT EXISTS (
+	        SELECT 1 FROM gestion.Expensa c WHERE c.id_consorcio = e.id_consorcio 
+	        and c.mes = e.mes 
+	        and c.anio = e.anio
+	    )
+	    
+	    
+	 
+	;with ExpensaGenerada as (
+	select
+		e.id as id_expensa,
+		g.*
+	from #GastosJson g 
+	inner join gestion.Consorcio c on g.NombreConsorcio = c.nombre
+	inner join #Mes m on g.Mes = m.mes 
+	inner join gestion.Expensa e 
+		on e.id_consorcio = c.id  
+		and e.mes = m.nro
+		and e.anio = m.anio
+	
+	)
+	INSERT INTO gestion.Gasto (
+		id_tipo_gasto, 
+		id_expensa, 
+		nro_factura, 
+		importe, 
+		descripcion, 
+		cuotas_totales, 
+		nro_cuota)
+	SELECT 
+	    tg.id AS id_tipo_gasto,
+	    g.id_expensa,
+	    null,
+	    CAST(REPLACE(x.importe, ',', '') AS DECIMAL(12,2)) AS importe,
+	    x.tipo_gasto AS descripcion,
+	    null,
+	    null
+	FROM ExpensaGenerada g
+	CROSS APPLY (
+	    VALUES
+	        ('GASTOS BANCARIOS', g.GastosBancarios),
+	        ('GASTOS DE ADMINISTRACION', g.GastosAdministracion),
+	        ('GASTOS DE LIMPIEZA', g.GastosLimpieza),
+	        ('SEGUROS', g.GastosSeguros),
+	        ('GASTOS GENERALES', g.GastosGenerales),
+	        ('SERVICIOS PUBLICOS', g.GastosAgua),
+	        ('SERVICIOS PUBLICOS', g.GastosLuz)
+	) AS x(tipo_gasto, importe)
+	INNER JOIN gestion.Tipo_Gasto tg ON tg.nombre = x.tipo_gasto
+	WHERE TRY_CAST(REPLACE(x.importe, ',', '') AS DECIMAL(12,2)) IS NOT NULL
+	  AND TRY_CAST(REPLACE(x.importe, ',', '') AS DECIMAL(12,2)) > 0;
+	
+	drop table #Mes
+	drop table #GastosJson
+END
+GO
+  */      
+ 
