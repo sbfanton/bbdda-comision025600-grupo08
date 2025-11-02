@@ -38,7 +38,11 @@ go
 
 CREATE OR ALTER PROCEDURE gestion.sp_importar_consorcios
     @pathConsorcios NVARCHAR(500),
-    @pathProveedores NVARCHAR(500)
+    @pathProveedores NVARCHAR(500),
+    @rowTerminatorConsorcios NVARCHAR(10) = '\n',
+    @rowTerminatorConsorciosProveedores NVARCHAR(10) = '\r',
+    @fieldTerminatorConsorcios NVARCHAR(10) = ';',
+    @fieldTerminatorConsorciosProveedores NVARCHAR(10) = ';'
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -67,8 +71,8 @@ BEGIN
         FROM ''' + @pathConsorcios + '''
         WITH (
             FIRSTROW = 2,
-            FIELDTERMINATOR = '';'',
-            ROWTERMINATOR = ''\n''
+            FIELDTERMINATOR = ''' + @fieldTerminatorConsorcios + ''',
+            ROWTERMINATOR = ''' + @rowTerminatorConsorcios + '''
         );';
     EXEC sp_executesql @sql;
 
@@ -78,8 +82,8 @@ BEGIN
         FROM ''' + @pathProveedores + '''
         WITH (
             FIRSTROW = 2,
-            FIELDTERMINATOR = '';'',
-            ROWTERMINATOR = ''\r''
+            FIELDTERMINATOR = ''' + @fieldTerminatorConsorciosProveedores + ''',
+            ROWTERMINATOR = ''' + @rowTerminatorConsorciosProveedores + '''
         );';
     EXEC sp_executesql @sql2;
 
@@ -183,7 +187,9 @@ GO
 -- Unidad_Funcional
 
 CREATE OR ALTER PROCEDURE gestion.sp_importar_unidades_funcionales
-    @path NVARCHAR(4000) 
+    @path NVARCHAR(4000) ,
+    @rowTerminator NVARCHAR(10) = '\n',
+    @fieldTerminator NVARCHAR(10) = '\t'
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -209,8 +215,8 @@ BEGIN
         FROM ''' + @path + '''
         WITH (
             FIRSTROW = 2,
-            FIELDTERMINATOR = ''\t'',
-            ROWTERMINATOR = ''\n''
+            FIELDTERMINATOR = ''' + @fieldTerminator + ''',
+            ROWTERMINATOR = ''' + @rowTerminator + '''
         );';
     EXEC sp_executesql @sql;
 
@@ -261,7 +267,11 @@ GO
 
 CREATE OR ALTER PROCEDURE gestion.sp_importar_personas
     @pathPersonasDatos NVARCHAR(4000),
-    @pathPersonasUF NVARCHAR(4000)
+    @pathPersonasUF NVARCHAR(4000),
+    @rowTerminatorPersonas NVARCHAR(10) = '\n',
+    @rowTerminatorPersonasUF NVARCHAR(10) = '\n',
+    @fieldTerminatorPersonas NVARCHAR(10) = ';',
+    @fieldTerminatorPersonasUF NVARCHAR(10) = '|'
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -285,8 +295,8 @@ BEGIN
         FROM ''' + @pathPersonasDatos + '''
         WITH (
             FIRSTROW = 2,
-            FIELDTERMINATOR = '';'',
-            ROWTERMINATOR = ''\n''
+            FIELDTERMINATOR = ''' + @fieldTerminatorPersonas + ''',
+            ROWTERMINATOR = ''' + @rowTerminatorPersonas + '''
         );';
     EXEC sp_executesql @sql;
    
@@ -304,8 +314,8 @@ BEGIN
         FROM ''' + @pathPersonasUF + '''
         WITH (
             FIRSTROW = 2,
-            FIELDTERMINATOR = ''|'',
-            ROWTERMINATOR = ''\n''
+            FIELDTERMINATOR = ''' + @fieldTerminatorPersonasUF + ''',
+            ROWTERMINATOR = ''' + @rowTerminatorPersonasUF + '''
         );';
     EXEC sp_executesql @sql2;
    
@@ -452,7 +462,9 @@ GO
 -- Pago
 
 CREATE OR ALTER PROCEDURE gestion.sp_importar_pagos
-    @path NVARCHAR(4000)
+    @path NVARCHAR(4000),
+    @rowTerminator NVARCHAR(10) = '\n',
+    @fieldTerminator NVARCHAR(10) = ','
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -472,8 +484,8 @@ BEGIN
         FROM ''' + @path + '''
         WITH (
             FIRSTROW = 2,
-            FIELDTERMINATOR = '','',
-            ROWTERMINATOR = ''\n''
+            FIELDTERMINATOR = ''' + @fieldTerminator + ''',
+            ROWTERMINATOR = ''' + @rowTerminator + '''
         );';
     EXEC sp_executesql @sql;
 
@@ -496,6 +508,7 @@ BEGIN
 
     ;with Pagos_ufs as (
         select 
+        cast(t.id_pago as bigint) as id_pago,
         cba.id_unidad_funcional as id_uf,
         cba.id_consorcio_unidad_funcional as id_cons_uf,
         t.cvu_cbu as cbu,
@@ -514,18 +527,24 @@ BEGIN
         --where ISDATE(t.fecha) = 1
     )
     insert into gestion.Pago(
+        id,
         id_unidad_funcional,
         id_consorcio_unidad_funcional,
         cbu_cvu_origen,
         fecha,
 	    importe)
     select 
+    p.id_pago,
     p.id_uf,
     p.id_cons_uf,
     p.cbu,
     p.FechaConvertida,
     p.importe 
-    from Pagos_ufs p;
+    from Pagos_ufs p 
+    where not exists (
+        select 1 from gestion.Pago gp 
+        where gp.id = p.id_pago 
+    );
 
     drop table #tmp_pagos
 
@@ -537,10 +556,11 @@ GO
 
 -- Tipo_Gasto
 -- Proveedor
-
 CREATE OR ALTER PROCEDURE gestion.sp_importar_tipos_gastos_y_proveedores
     @path NVARCHAR(4000),
-    @extraordinarios BIT = 0
+    @extraordinarios BIT = 0,
+    @rowTerminator NVARCHAR(10) = '\n',
+    @fieldTerminator NVARCHAR(10) = ';'
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -554,21 +574,24 @@ BEGIN
         consorcio NVARCHAR(100)
     );
 
-    DECLARE @sql NVARCHAR(MAX);
-    SET @sql = N'
+   DECLARE @sql NVARCHAR(MAX);
+   SET @sql = N'
         BULK INSERT #tmp_tipos_gastos
         FROM ''' + @path + '''
         WITH (
             FIRSTROW = 2,
-            FIELDTERMINATOR = '';'',
-            ROWTERMINATOR = ''\r''
-        );';
+            FIELDTERMINATOR = ''' + @fieldTerminator + ''',
+            ROWTERMINATOR = ''' + @rowTerminator + '''
+        );'
     EXEC sp_executesql @sql;
 
     ALTER TABLE #tmp_tipos_gastos 
     ADD es_extraordinario BIT;
 
     update #tmp_tipos_gastos set es_extraordinario = @extraordinarios
+    
+    UPDATE #tmp_tipos_gastos
+	SET consorcio = RTRIM(REPLACE(REPLACE(consorcio, CHAR(13), ''), CHAR(10), ''))
 
     -- Tipo_Gasto
     INSERT INTO gestion.Tipo_Gasto (nombre, es_extraordinario)
@@ -608,6 +631,43 @@ GO
 
 -- Gasto
 
+-- Funcion para normalizar los importes:
+CREATE OR ALTER FUNCTION gestion.fn_normalizar_importe (@valor NVARCHAR(50))
+RETURNS DECIMAL(12,2)
+AS
+BEGIN
+    DECLARE @resultado DECIMAL(12,2);
+    DECLARE @limpio NVARCHAR(50);
+
+    SET @valor = LTRIM(RTRIM(REPLACE(REPLACE(REPLACE(@valor, '$', ''), '€', ''), ' ', '')));
+
+    SET @limpio = 
+        CASE
+            WHEN @valor LIKE '%,%.%' THEN 
+                REPLACE(@valor, ',', '')
+
+            WHEN @valor LIKE '%.%,%' THEN 
+                REPLACE(REPLACE(@valor, '.', ''), ',', '.')
+
+            WHEN @valor LIKE '%,%,%' THEN 
+                REPLACE(
+                    STUFF(@valor, LEN(@valor) - CHARINDEX(',', REVERSE(@valor)) + 1, 1, '.'),
+                    ',', ''
+                )
+
+            ELSE @valor
+        END
+
+    IF @limpio LIKE '%[^0-9.]%' 
+        SET @resultado = NULL
+    ELSE
+        SET @resultado = TRY_CAST(@limpio AS DECIMAL(12,2))
+
+    RETURN @resultado
+END
+GO
+
+-- Importar gastos ordinarios
 create or alter procedure gestion.sp_importar_gastos_ordinarios_anio_actual
 	@jsonData NVARCHAR(MAX)
 AS 
@@ -679,7 +739,7 @@ BEGIN
 	    g.mes,
 	    g.anio,
 	    null,
-	    CAST(REPLACE(x.importe, ',', '') AS DECIMAL(12,2)) AS importe,
+	    gestion.fn_normalizar_importe(x.importe) AS importe,
 	    x.tipo_gasto AS descripcion,
 	    null,
 	    null
@@ -695,12 +755,16 @@ BEGIN
 	        ('SERVICIOS PUBLICOS', g.GastosLuz)
 	) AS x(tipo_gasto, importe)
 	INNER JOIN gestion.Tipo_Gasto tg ON tg.nombre = x.tipo_gasto
-	WHERE TRY_CAST(REPLACE(x.importe, ',', '') AS DECIMAL(12,2)) IS NOT NULL
-	  AND TRY_CAST(REPLACE(x.importe, ',', '') AS DECIMAL(12,2)) > 0;
+	WHERE gestion.fn_normalizar_importe(x.importe) IS NOT NULL
+	  AND gestion.fn_normalizar_importe(x.importe) > 0 
+      AND NOT EXISTS (
+        select 1 from gestion.Gasto gg
+        where gg.mes = g.mes 
+        and gg.anio = g.anio 
+        and gg.id_consorcio = g.consorcio
+      );
 	
 	drop table #Mes
 	drop table #GastosJson
 END
 GO
-
-  

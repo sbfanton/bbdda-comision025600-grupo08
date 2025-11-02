@@ -36,9 +36,10 @@ EXEC gestion.sp_importar_pagos
 
 -- Tipo_Gasto y Proveedor
 EXEC gestion.sp_importar_tipos_gastos_y_proveedores
-     @path =  N'/var/opt/mssql/pruebas/datos-varios-proveedores.csv';
+     @path =  N'/var/opt/mssql/pruebas/datos-varios-proveedores.csv',
+    @rowTerminator = '\r';
 
--- Gasto
+-- Gastos ordinarios
 DECLARE @json NVARCHAR(MAX)
 SELECT @json = BulkColumn FROM OPENROWSET(BULK '/var/opt/mssql/pruebas/Servicios.Servicios.json', SINGLE_CLOB) AS jsonn
 --print(@json)
