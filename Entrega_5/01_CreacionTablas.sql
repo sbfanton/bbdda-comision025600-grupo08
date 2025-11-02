@@ -131,7 +131,7 @@ go
 
 -- Tabla Pago
 create table gestion.Pago(
-	id bigint identity(1,1) not null,
+	id bigint /*identity(1,1)*/ not null,
 	id_unidad_funcional int null,
 	id_consorcio_unidad_funcional int null,
 	cbu_cvu_origen char(22) not null,
