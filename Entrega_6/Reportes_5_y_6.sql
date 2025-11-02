@@ -1,7 +1,7 @@
 /* Reporte 5
-Obtenga los 3 (tres) propietarios con mayor morosidad. Presente información de contacto y
-DNI de los propietarios para que la administración los pueda contactar o remitir el trámite al
-estudio jurídico.
+Obtenga los 3 (tres) propietarios con mayor morosidad. Presente informaciï¿½n de contacto y
+DNI de los propietarios para que la administraciï¿½n los pueda contactar o remitir el trï¿½mite al
+estudio jurï¿½dico.
 */
 GO
 CREATE OR ALTER PROCEDURE gestion.TopMorosos
@@ -15,7 +15,7 @@ BEGIN
         SELECT 
             uf.id AS id_unidad_funcional,
             uf.id_consorcio,
-            SUM(g.importe) AS total_gastos
+            SUM(g.importe * (uf.porcentaje / 100.0)) AS total_gastos
         FROM gestion.Unidad_Funcional uf
         JOIN gestion.Gasto g 
             ON g.id_consorcio = uf.id_consorcio
@@ -75,7 +75,7 @@ EXEC gestion.TopMorosos null, 100, 0, 33000000;
 
 
 /* Reporte 6
-Muestre las fechas de pagos de expensas ordinarias de cada UF y la cantidad de días que
+Muestre las fechas de pagos de expensas ordinarias de cada UF y la cantidad de dï¿½as que
 pasan entre un pago y el siguiente, para el conjunto examinado.
 */
 GO
