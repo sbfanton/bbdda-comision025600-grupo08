@@ -843,3 +843,99 @@ BEGIN
     END CATCH
 END
 GO
+
+--Importar gastos extraordinarios(de prueba)
+create or alter procedure gestion.sp_importar_gastos_extraordinarios_anio_actual
+	@jsonData NVARCHAR(MAX)
+AS 
+BEGIN 
+	
+	IF OBJECT_ID('tempdb..#GastosJson') IS NOT NULL DROP TABLE #GastosJson
+	IF OBJECT_ID('tempdb..#Mes') IS NOT NULL DROP TABLE #Mes
+	
+	declare @anio_actual int = YEAR(GETDATE())
+	
+	create table #Mes (nro int, mes varchar(20), anio int)
+	INSERT INTO #Mes (nro, mes, anio) VALUES
+	    (1, 'enero', @anio_actual),
+	    (2, 'febrero', @anio_actual),
+	    (3, 'marzo', @anio_actual),
+	    (4, 'abril', @anio_actual),
+	    (5, 'mayo', @anio_actual),
+	    (6, 'junio', @anio_actual),
+	    (7, 'julio', @anio_actual),
+	    (8, 'agosto', @anio_actual),
+	    (9, 'septiembre', @anio_actual),
+	    (10, 'octubre', @anio_actual),
+	    (11, 'noviembre', @anio_actual),
+	    (12, 'diciembre', @anio_actual)
+	
+	SELECT 
+	    JSON_VALUE(j.value, '$."Nombre del consorcio"') AS NombreConsorcio,
+	    LTRIM(RTRIM(LOWER(JSON_VALUE(j.value, '$."Mes"')))) AS Mes,
+	    JSON_VALUE(j.value, '$."PLOMERIA GENERAL"') AS GastosPlomeriaGeneral,
+	    JSON_VALUE(j.value, '$."REPARACION ESTRUCTURAL"') AS GastosReparacionEstructural,
+	    JSON_VALUE(j.value, '$."IMPERMEABILIZACION"') AS GastosImpermeabilizacion,
+	    JSON_VALUE(j.value, '$."REMODELACION"') AS GastosRemodelacion,
+	    JSON_VALUE(j.value, '$."INSTALACION DE SIST. SEGURIDAD"') AS GastosInstalacionSeguridad
+	INTO #GastosJson
+	FROM OPENJSON(@jsonData) AS j
+
+	 
+	;with GastoMes as (
+	select
+		c.id as consorcio,
+		m.nro as mes,
+		m.anio as anio,
+		g.GastosPlomeriaGeneral,
+		g.GastosReparacionEstructural,
+		g.GastosImpermeabilizacion,
+		g.GastosRemodelacion,
+		g.GastosInstalacionSeguridad
+	from #GastosJson g 
+	inner join gestion.Consorcio c on g.NombreConsorcio = c.nombre
+	inner join #Mes m on g.Mes = m.mes
+	)
+	INSERT INTO gestion.Gasto (
+		id_tipo_gasto, 
+		id_consorcio,
+		mes,
+		anio,
+		nro_factura, 
+		importe, 
+		descripcion, 
+		cuotas_totales, 
+		nro_cuota)
+	SELECT 
+	    tg.id AS id_tipo_gasto,
+	    g.consorcio,
+	    g.mes,
+	    g.anio,
+	    null,
+	    gestion.fn_normalizar_importe(x.importe) AS importe,
+	    x.tipo_gasto AS descripcion,
+	    null,
+	    null
+	FROM GastoMes g
+	CROSS APPLY (
+	    VALUES
+	        ('PLOMERIA GENERAL', g.GastosPlomeriaGeneral),
+	        ('REPARACION ESTRUCTURAL', g.GastosReparacionEstructural),
+	        ('IMPERMEABILIZACION', g.GastosImpermeabilizacion),
+	        ('REMODELACION', g.GastosRemodelacion),
+	        ('INSTALACION DE SIST. SEGURIDAD', g.GastosInstalacionSeguridad)
+	) AS x(tipo_gasto, importe)
+	INNER JOIN gestion.Tipo_Gasto tg ON tg.nombre = x.tipo_gasto
+	WHERE gestion.fn_normalizar_importe(x.importe) IS NOT NULL
+	  AND gestion.fn_normalizar_importe(x.importe) > 0
+      AND NOT EXISTS (
+        select 1 from gestion.Gasto gg
+        where gg.mes = g.mes 
+        and gg.anio = g.anio 
+        and gg.id_consorcio = g.consorcio
+      );
+	
+	drop table #Mes
+	drop table #GastosJson
+END
+GO
