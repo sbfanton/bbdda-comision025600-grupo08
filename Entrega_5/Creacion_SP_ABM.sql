@@ -1,5 +1,188 @@
 USE Com5600G08
 GO
+--PROCEDIMIENTOS PARA AMB TIPO_DOCUMENTO
+--ALTA
+--------------------------------------------------------------------------lucas--------------------------------------------------
+CREATE PROCEDURE ALTA_TIPO_DOCUMENTO
+	@id_nuevo varchar(5),
+	@descripcion_nueva varchar(100)
+AS
+BEGIN 
+	INSERT INTO GESTION.TIPO_DOCUMENTO VALUES (@id_nuevo,@descripcion_nueva)
+END
+
+--BAJA
+CREATE PROCEDURE BAJA_TIPO_DOCUMENTO 
+	@id_baja varchar(5)
+AS
+BEGIN 
+	delete from GESTION.TIPO_DOCUMENTO where tipo_documento.id=@id_baja
+END
+
+--MODIFICACION
+CREATE PROCEDURE MODIFICACION_TIPO_DOCUMENTO 
+	@tipo_doc_modi varchar(100),
+	@id_modi varchar(5)
+AS
+BEGIN 
+	update GESTION.TIPO_DOCUMENTO set descripcion = @tipo_doc_modi
+	where id = @id_modi
+END
+
+--pruebas de las SP
+exec alta_tipo_documento 'PAS', 'Pasaporte'
+exec baja_tipo_documento 'PAS'
+exec MODIFICACION_TIPO_DOCUMENTO 'otro_doc', 'PAS'
+
+SELECT * FROM gestion.Tipo_Documento
+-----------------------------------------PERSONA---------------------------------------------------
+--ALTA PERSONA
+CREATE PROCEDURE ALTA_PERSONA
+	@nro_doc int,
+	@dni varchar(5),
+	@nombre varchar(100),
+	@apellido varchar(100),
+	@email varchar(150),
+	@telefono varchar(30)
+AS
+BEGIN 
+	INSERT INTO GESTION.Persona VALUES (@nro_doc,@dni,@nombre,@apellido,@email,@telefono)
+END
+
+--BAJA PERSONA
+CREATE PROCEDURE BAJA_PERSONA 
+	@NRO_DOC INT
+AS
+BEGIN 
+	delete from GESTION.Persona where PERSONA.nro_doc=@NRO_DOC
+END
+
+
+--------MODIFICACION---------
+--EMAIL-- 
+CREATE PROCEDURE MODIFICACION_PERSONA_EMAIL
+	@NRO_DOC INT,
+	@email_modificar varchar(150)
+AS
+BEGIN 
+	update GESTION.Persona set persona.email=@email_modificar
+	where persona.nro_doc=@NRO_DOC
+END
+
+--TELEFONO--
+CREATE PROCEDURE MODIFICACION_PERSONA_TELEFONO
+	@NRO_DOC INT,
+	@telefono varchar(30)
+AS
+BEGIN 
+	update GESTION.Persona set persona.telefono=@telefono
+	where persona.nro_doc=@NRO_DOC
+END
+
+exec ALTA_PERSONA 12345678, 'DNI', 'ARMANDO', 'BARRERA', 'X@HOTMAIL.COM', '987654321' 
+exec BAJA_PERSONA 12345678
+exec MODIFICACION_PERSONA_EMAIL 12345678, 'seymourskinner@gmail.com'
+exec MODIFICACION_PERSONA_TELEFONO 12345678, '87654321'
+
+SELECT * FROM GESTION.Persona
+where Persona.nro_doc=12345678
+-----------------------------------------CONSORCIO---------------------------------------------------
+select * from gestion.Consorcio
+
+--ALTA CONSORCIO
+CREATE PROCEDURE ALTA_CONSORCIO
+	@id int,
+	@nombre varchar(100),
+	@calle varchar(100),
+	@nro int,
+	@localidad varchar(100),
+	@provincia varchar(100),
+	@cuit char(13),
+	@razon_social varchar(100),
+	@banco varchar(50),
+	@cbu_cvu char(22)
+AS
+BEGIN 
+	INSERT INTO GESTION.Consorcio VALUES (@id,@nombre,@calle,@nro,@localidad,@provincia,@cuit,@razon_social,@banco,@cbu_cvu)
+END
+
+--BAJA CONSORCIO
+CREATE PROCEDURE BAJA_CONSORCIO
+	@id INT
+AS
+BEGIN 
+	delete from GESTION.Consorcio where Consorcio.id=@id
+END
+
+--MODIFICACION CONSORCIO
+CREATE PROCEDURE MODIFICACION_CONSORCIO_NOMBRE
+	@id INT,
+	@nombre varchar(100)
+AS
+BEGIN 
+	update GESTION.Consorcio set nombre=@nombre
+	where Consorcio.id=@id
+END
+---UBICACION DEL CONSORCIO
+CREATE PROCEDURE MODIFICACION_CONSORCIO_UBICACION
+	@id INT,
+	@calle varchar(100),
+	@nro int,
+	@localidad varchar(100),
+	@provincia varchar(100)
+AS
+BEGIN 
+	update GESTION.Consorcio set calle=@calle, nro=@nro, localidad=@localidad, provincia=@provincia 
+	where Consorcio.id=@id
+END
+---DATOS SOCIALES Y DEL BANCO
+CREATE PROCEDURE MODIFICACION_CONSORCIO_social
+	@id INT,
+	@cuit char(13),
+	@razon_social varchar(100),
+	@banco varchar(50),
+	@cbu_cvu char(22)
+AS
+BEGIN 
+	update GESTION.Consorcio set cuit=@cuit, razon_social=@razon_social, banco=@banco, cbu_cvu=@cbu_cvu 
+	where Consorcio.id=@id
+END
+
+---PRUEBAS DE LAS SP
+select * from gestion.Consorcio
+exec ALTA_CONSORCIO 6,'Hola','Corrientes',4321,'Laferrere','Buenos Aires',NULL,NULL,'BANCO PROVINCIA',NULL
+EXEC BAJA_CONSORCIO 6
+EXEC MODIFICACION_CONSORCIO_NOMBRE 6, 'Armando Barrera'
+EXEC MODIFICACION_CONSORCIO_UBICACION 6, 'Belgrano',3250,'Ciudad Aut noma de Buenos Aires','Ciudad Aut noma de Buenos Aires'
+exec MODIFICACION_CONSORCIO_social 6,'20-12345678-8','BBVA FRANC S','BANCO SRL','1351324324312345678912'
+-----------------------------------------UNIDAD FUNCIONAL---------------------------------------------------
+---ALTA UNIDAD FUNCIONAL
+CREATE PROCEDURE ALTA_UF
+	@id int,
+	@id_consorcio int,
+	@piso varchar(10),
+	@depto varchar(10),
+	@porcentaje decimal(5,2),
+	@superficie_m2 decimal(7,2),
+	@tiene_cochera bit,
+	@tiene_baulera bit
+AS
+BEGIN
+	INSERT INTO GESTION.Unidad_Funcional VALUES(@id,@id_consorcio,@piso,@depto,@porcentaje,@superficie_m2,@tiene_cochera,@tiene_baulera)	
+END
+
+---PRUEBA ALTA UF
+select * from gestion.Unidad_Funcional
+where Unidad_Funcional.id=50 and id_consorcio=5
+
+EXEC ALTA_UF 50 , 5, 'PA', 'C', 3.2 ,32.24, 1, 1
+
+
+
+
+delete from gestion.unidad_funcional
+where Unidad_Funcional.id=50 and id_consorcio=5
+---------------------------------------------------------------------------leila-------------------------------------------------
 
 --MODIFICAR UNIDAD FUNCIONAL-----
 
@@ -26,10 +209,10 @@ BEGIN
         THROW 50000, 'Superficie debe ser > 0.', 1;
 
 	IF @piso LIKE '%[^0-9A-Za-z -]%'
-    THROW 50000, 'El valor de piso contiene caracteres no permitidos (solo letras, n˙meros, espacios o guiones).', 1;
+    THROW 50000, 'El valor de piso contiene caracteres no permitidos (solo letras, n√∫meros, espacios o guiones).', 1;
 
 	IF @depto LIKE '%[^0-9A-Za-z -]%'
-    THROW 50000, 'El valor de depto contiene caracteres no permitidos (solo letras, n˙meros, espacios o guiones).', 1;
+    THROW 50000, 'El valor de depto contiene caracteres no permitidos (solo letras, n√∫meros, espacios o guiones).', 1;
 
     UPDATE gestion.Unidad_Funcional
     SET piso = @piso,
@@ -108,7 +291,7 @@ BEGIN
           AND id_tipo_doc_persona = @id_tipo_doc_persona
           AND nro_doc_persona = @nro_doc_persona
     )
-        THROW 50000, 'La relaciÛn Unidad_Funcional_Persona ya existe.', 1;
+        THROW 50000, 'La relaci√≥n Unidad_Funcional_Persona ya existe.', 1;
 
    /* IF @fecha_desde IS NOT NULL AND @fecha_hasta IS NOT NULL AND @fecha_desde > @fecha_hasta
         THROW 50000, 'fecha_desde no puede ser mayor que fecha_hasta.', 1;*/
@@ -203,7 +386,7 @@ BEGIN
         THROW 50000, 'Unidad_Funcional no existe.', 1;
 
     IF @cbu_cvu IS NULL OR LEN(@cbu_cvu) <> 22
-        THROW 50000, 'CBU/CVU inv·lido (debe tener 22 dÌgitos).', 1;
+        THROW 50000, 'CBU/CVU inv√°lido (debe tener 22 d√≠gitos).', 1;
 
     IF EXISTS(
         SELECT 1 FROM gestion.Cuenta_Bancaria_Asociada_UF
@@ -211,7 +394,7 @@ BEGIN
           AND id_consorcio_unidad_funcional = @id_consorcio_unidad_funcional
           AND cbu_cvu = @cbu_cvu
     )
-        THROW 50000, 'La cuenta bancaria ya est· asociada a esa UF.', 1;
+        THROW 50000, 'La cuenta bancaria ya est√° asociada a esa UF.', 1;
 
     INSERT INTO gestion.Cuenta_Bancaria_Asociada_UF (id_unidad_funcional, id_consorcio_unidad_funcional, cbu_cvu)
     VALUES (@id_unidad_funcional, @id_consorcio_unidad_funcional, @cbu_cvu);
@@ -238,7 +421,7 @@ BEGIN
         THROW 50000, 'Cuenta bancaria original no encontrada.', 1;
 
     IF @cbu_cvu_nuevo IS NULL OR LEN(@cbu_cvu_nuevo) <> 22
-        THROW 50000, 'CBU/CVU nuevo inv·lido (22 dÌgitos).', 1;
+        THROW 50000, 'CBU/CVU nuevo inv√°lido (22 d√≠gitos).', 1;
 
     -- evitar duplicado con el nuevo
     IF EXISTS(
@@ -271,7 +454,7 @@ BEGIN
         THROW 50000, 'Unidad_Funcional no existe.', 1;
 
 	 IF @cbu_cvu IS NULL OR LEN(@cbu_cvu) <> 22
-        THROW 50000, 'CBU/CVU nuevo inv·lido (22 dÌgitos).', 1;
+        THROW 50000, 'CBU/CVU nuevo inv√°lido (22 d√≠gitos).', 1;
 
     IF NOT EXISTS(
         SELECT 1 FROM gestion.Cuenta_Bancaria_Asociada_UF
@@ -337,4 +520,5 @@ BEGIN
 	--es correcto eliminar el pago asi nomas? o tengo que crear una tabla de auditoria? eso va en el der?
     DELETE FROM gestion.Pago WHERE id = @id;
 END
+
 GO
