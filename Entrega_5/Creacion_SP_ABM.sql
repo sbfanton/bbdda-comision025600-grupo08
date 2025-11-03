@@ -477,6 +477,7 @@ GO
 
 ---INSERTAR PAGO--
 CREATE OR ALTER PROCEDURE gestion.sp_alta_Pago
+	@id_pago BIGINT,
     @id_unidad_funcional INT = NULL,
     @id_consorcio_unidad_funcional INT = NULL,
     @cbu_cvu_origen CHAR(22),
@@ -485,6 +486,9 @@ CREATE OR ALTER PROCEDURE gestion.sp_alta_Pago
 AS
 BEGIN
     SET NOCOUNT ON;
+
+	IF @id_pago IS NULL
+        THROW 50000, 'id_pago es obligatorio.', 1;
 
     IF @cbu_cvu_origen IS NULL OR LTRIM(RTRIM(@cbu_cvu_origen)) = ''
         THROW 50000, 'CBU/CVU origen obligatorio.', 1;
@@ -502,8 +506,8 @@ BEGIN
             THROW 50000, 'Unidad_Funcional indicada no existe.', 1;
     END
 
-    INSERT INTO gestion.Pago (id_unidad_funcional, id_consorcio_unidad_funcional, cbu_cvu_origen, fecha, importe)
-    VALUES (@id_unidad_funcional, @id_consorcio_unidad_funcional, @cbu_cvu_origen, @fecha, @importe);
+    INSERT INTO gestion.Pago (id, id_unidad_funcional, id_consorcio_unidad_funcional, cbu_cvu_origen, fecha, importe)
+    VALUES (@id_pago, @id_unidad_funcional, @id_consorcio_unidad_funcional, @cbu_cvu_origen, @fecha, @importe);
 END
 GO
 
@@ -522,3 +526,4 @@ BEGIN
 END
 
 GO
+
