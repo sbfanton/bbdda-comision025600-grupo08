@@ -4,7 +4,7 @@ DNI de los propietarios para que la administraci�n los pueda contactar o remit
 estudio jur�dico.
 */
 GO
-CREATE OR ALTER PROCEDURE gestion.TopMorosos
+CREATE OR ALTER PROCEDURE gestion.sp_reporte_top_morosos
     @IdConsorcio INT = NULL,            -- filtra por consorcio (opcional)
     @TopCantidad INT = 3,               -- cantidad de morosos a mostrar
     @DeudaMinima DECIMAL(18,2) = 0,     -- filtra morosos con deuda mayor a este valor
@@ -68,9 +68,9 @@ BEGIN
 END;
 GO
 
-EXEC gestion.TopMorosos;
-EXEC gestion.TopMorosos null, 100, 0;
-EXEC gestion.TopMorosos null, 100, 0, 33000000;
+EXEC gestion.sp_reporte_top_morosos;
+EXEC gestion.sp_reporte_top_morosos null, 100, 0;
+EXEC gestion.sp_reporte_top_morosos null, 100, 0, 33000000;
 
 
 
@@ -79,7 +79,7 @@ Muestre las fechas de pagos de expensas ordinarias de cada UF y la cantidad de d
 pasan entre un pago y el siguiente, para el conjunto examinado.
 */
 GO
-CREATE OR ALTER PROCEDURE gestion.ReportePagosOrdinarios
+CREATE OR ALTER PROCEDURE gestion.sp_reporte_pagos_ordinarios
     @IdConsorcio INT = NULL,            -- Filtra por consorcio (opcional)
     @FechaDesde DATE = NULL,            -- Filtra pagos desde esta fecha (opcional)
     @FechaHasta DATE = NULL             -- Filtra pagos hasta esta fecha (opcional)
@@ -113,4 +113,4 @@ BEGIN
 END;
 GO
 
-EXEC gestion.ReportePagosOrdinarios;
+EXEC gestion.sp_reporte_pagos_ordinarios;
