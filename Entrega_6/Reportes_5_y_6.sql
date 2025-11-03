@@ -1,3 +1,6 @@
+USE Com5600G08;
+Go
+
 /* Reporte 5
 Obtenga los 3 (tres) propietarios con mayor morosidad. Presente informaci�n de contacto y
 DNI de los propietarios para que la administraci�n los pueda contactar o remitir el tr�mite al
@@ -54,9 +57,9 @@ BEGIN
             AND p.id_consorcio = uf.id_consorcio
     )
     SELECT TOP (@TopCantidad)
-        nombre_completo AS "Apellido y Nombre",
-        nro_doc AS "Documento",
-        telefono AS "Numero de contacto",
+        nombre_completo,
+        nro_doc,
+        telefono,
         total_gastos,
         total_pagado,
         deuda
@@ -64,7 +67,8 @@ BEGIN
     WHERE (@IdConsorcio IS NULL OR id_consorcio = @IdConsorcio)
       AND deuda > @DeudaMinima
       AND (@DeudaMaxima < 0 OR deuda <= @DeudaMaxima)
-    ORDER BY deuda DESC;
+    ORDER BY deuda DESC
+    FOR XML PATH('Moroso'), ROOT('TopMorosos');
 END;
 GO
 
