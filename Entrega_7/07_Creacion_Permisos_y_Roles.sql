@@ -108,4 +108,10 @@ JOIN sys.database_principals AS dp
     ON perms.grantee_principal_id = dp.principal_id
 JOIN sys.objects AS obj
     ON perms.major_id = obj.object_id;
+
 --------------------------------------------
+
+DROP LOGIN admin_general
+DROP LOGIN admin_bancario
+DROP LOGIN admin_operativo
+DROP LOGIN sistemas
