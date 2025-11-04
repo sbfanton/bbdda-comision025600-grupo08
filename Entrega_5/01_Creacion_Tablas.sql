@@ -31,13 +31,15 @@ go
 
 -- Tabla Persona 
 create table gestion.Persona(
+	id bigint identity(1,1) not null,
 	nro_doc int not null,
 	id_tipo_documento varchar(5) not null,
 	nombre varchar(100) not null,
 	apellido varchar(100) not null,
 	email varchar(150),
 	telefono varchar(30),
-	constraint persona_pk primary key (nro_doc, id_tipo_documento),
+	--constraint persona_pk primary key (nro_doc, id_tipo_documento),
+	constraint persona_pk primary key (id),
 	constraint persona_tipo_documento_fk foreign key (id_tipo_documento) 
 		references gestion.Tipo_Documento(id),
 	constraint persona_nro_doc_ck check (nro_doc > 0),
@@ -60,18 +62,8 @@ create table gestion.Consorcio (
 	nro int not null,
 	localidad varchar(100) not null,
 	provincia varchar(100) not null,
-	cuit char(13), -- Puede ser un consorcio que no este inscripto en ARCA
-	razon_social varchar(100), -- Puede ser un consorcio que no este inscripto en ARCA
-	banco varchar(50),
-	cbu_cvu char(22),
 	constraint consorcio_pk primary key (id),
-	constraint consorcio_nro_dir_ck check (nro > 0),
-	constraint consorcio_cuit_ck 
-		check (
-			cuit IS NULL OR 
-			cuit LIKE '[0-9][0-9]-[0-9][0-9][0-9][0-9][0-9][0-9][0-9][0-9]-[0-9]'
-		),
-	constraint consorcio_cbu_cvu_ck CHECK (cbu_cvu IS NULL OR (LEN(cbu_cvu) = 22 AND cbu_cvu NOT LIKE '%[^0-9]%')),
+	constraint consorcio_nro_dir_ck check (nro > 0)
 );
 go
 
@@ -101,28 +93,28 @@ go
 create table gestion.Unidad_Funcional_Persona(
 	id_unidad_funcional int not null,
 	id_consorcio_unidad_funcional int not null,
-	id_tipo_doc_persona varchar(5) not null,
-	nro_doc_persona int not null,
+	id_persona bigint not null,
 	fecha_desde date,
 	fecha_hasta date,
 	es_inquilino bit not null,
 	constraint unidad_funcional_persona_pk primary key 
 		(id_unidad_funcional, id_consorcio_unidad_funcional,
-		 id_tipo_doc_persona, nro_doc_persona),
+		 id_persona),
 	constraint unidad_funcional_persona_fk1 foreign key (id_unidad_funcional, id_consorcio_unidad_funcional) 
 		references gestion.Unidad_Funcional(id, id_consorcio),
-	constraint unidad_funcional_persona_fk2 foreign key (nro_doc_persona, id_tipo_doc_persona) 
-		references gestion.Persona(nro_doc, id_tipo_documento)
+	constraint unidad_funcional_persona_fk2 foreign key (id_persona) 
+		references gestion.Persona(id)
 );
 go
 
 
 -- Tabla Cuenta_Bancaria_Asociada_UF
 create table gestion.Cuenta_Bancaria_Asociada_UF(
+	id bigint identity(1,1) not null,
 	id_unidad_funcional int not null,
 	id_consorcio_unidad_funcional int not null,
 	cbu_cvu char(22) not null,
-	constraint cuenta_bancaria_asociada_UF_pk primary key (id_unidad_funcional, id_consorcio_unidad_funcional, cbu_cvu),
+	constraint cuenta_bancaria_asociada_UF_pk primary key (id),
 	constraint cuenta_bancaria_asociada_UF_fk foreign key (id_unidad_funcional, id_consorcio_unidad_funcional) 
 		references gestion.Unidad_Funcional(id, id_consorcio),
 	constraint cuenta_bancaria_asociada_UF_cbu_cvu_ck check (cbu_cvu IS NULL OR (LEN(cbu_cvu) = 22 AND cbu_cvu NOT LIKE '%[^0-9]%'))
@@ -131,7 +123,7 @@ go
 
 -- Tabla Pago
 create table gestion.Pago(
-	id bigint /*identity(1,1)*/ not null,
+	id bigint not null,
 	id_unidad_funcional int null,
 	id_consorcio_unidad_funcional int null,
 	cbu_cvu_origen char(22) not null,
