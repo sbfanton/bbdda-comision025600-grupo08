@@ -108,11 +108,7 @@ BEGIN
             calle VARCHAR(100),
             nro INT,
             localidad VARCHAR(100),
-            provincia VARCHAR(100),
-            cuit CHAR(13),
-            razon_social VARCHAR(100),
-            banco VARCHAR(50),
-            cbu_cvu CHAR(22);
+            provincia VARCHAR(100);
 
         -- Desglosamos el id
         UPDATE #ConsorcioOrigen 
@@ -131,57 +127,17 @@ BEGIN
         SET 
             localidad = 'Ciudad Autónoma de Buenos Aires',
             provincia = 'Ciudad Autónoma de Buenos Aires';
-            --razon_social = NombreConsorcio + ' S.A.';
 
         ;
 
-        -- Generamos CBUs aleatorios
-        /*UPDATE #ConsorcioOrigen
-        SET cbu_cvu = RIGHT('0000000000000000000000' + CAST(ABS(CHECKSUM(NEWID())) AS VARCHAR(22)), 22);
-        
-        -- Generamos CUITs aleatorios 
-        ;WITH CUITS AS (
-            SELECT 
-                NombreConsorcio,
-                cuit = '30-' + 
-                    RIGHT('00000000' + CAST(ABS(CHECKSUM(NEWID())) % 100000000 AS VARCHAR(8)), 8) + 
-                    '-' + CAST(ABS(CHECKSUM(NEWID())) % 10 AS VARCHAR(1))
-            FROM #ConsorcioOrigen
-        )
-        UPDATE c
-        SET c.cuit = cu.cuit
-        FROM #ConsorcioOrigen c
-        JOIN CUITS cu ON c.NombreConsorcio = cu.NombreConsorcio;*/
-
-        ;WITH Bancos AS (
-            SELECT
-                c.consorcio,
-                SUBSTRING(C.PROVEEDOR, 1, CHARINDEX('-', c.proveedor) - 1) AS banco
-            FROM #ConsorcioProveedores c
-            WHERE c.proveedor like '%banco%'
-        )
-        -- Actualizar banco
-        UPDATE o
-        SET 
-            banco = b.banco
-        FROM #ConsorcioOrigen o
-        INNER JOIN Bancos b 
-            ON o.NombreConsorcio = b.consorcio;
-
-
-    
-        INSERT INTO gestion.Consorcio (id, nombre, calle, nro, localidad, provincia, cuit, razon_social, banco, cbu_cvu)
+        INSERT INTO gestion.Consorcio (id, nombre, calle, nro, localidad, provincia)
         SELECT 
             id, 
             NombreConsorcio,
             calle,
             nro,
             localidad,
-            provincia,
-            cuit,
-            razon_social,
-            banco,
-            cbu_cvu
+            provincia
         FROM #ConsorcioOrigen o
         WHERE NOT EXISTS (
             SELECT 1 FROM gestion.Consorcio c 
@@ -416,9 +372,7 @@ BEGIN
                 LTRIM(RTRIM(p.telefono_contacto)) AS telefono
             FROM #PersonasUFConRN p
             WHERE 
-            p.dni_rn = 1 
-            AND p.cbu_uf_rn = 1
-            AND p.dni IS NOT NULL
+            p.dni IS NOT NULL
             AND p.dni <> ''
             AND ISNUMERIC(p.dni) = 1
             AND NOT EXISTS (
@@ -433,8 +387,7 @@ BEGIN
         insert into gestion.Unidad_Funcional_Persona (
                 id_unidad_funcional,
                 id_consorcio_unidad_funcional,
-                id_tipo_doc_persona,
-                nro_doc_persona,
+                id_persona,
                 fecha_desde,
                 fecha_hasta,
                 es_inquilino
@@ -442,22 +395,20 @@ BEGIN
             SELECT
                 CAST(p.uf AS INT) AS id_unidad_funcional,
                 CAST(p.id_consorcio AS INT) AS id_consorcio_unidad_funcional,
-                'DNI' AS id_tipo_documento,
-                CAST(p.dni AS INT) AS nro_doc,
+                gp.id,
                 null,
                 null,
                 CAST(p.inquilino as BIT) as es_inquilino
-            FROM #PersonasUFConRN p
+            FROM #PersonasUFConRN p 
+            inner join gestion.Persona gp on gp.nro_doc = CAST(p.dni AS INT) and gp.id_tipo_documento = 'DNI'
             WHERE 
-            p.dni_rn = 1 
-            AND p.cbu_uf_rn = 1
-            AND p.dni IS NOT NULL
+             p.dni IS NOT NULL
             AND p.dni <> ''
             AND ISNUMERIC(p.dni) = 1
             AND NOT EXISTS (
                 SELECT 1
                 FROM gestion.Unidad_Funcional_Persona uf
-                WHERE uf.nro_doc_persona = CAST(p.dni AS INT)
+                WHERE uf.id_persona = gp.id 
                     AND uf.id_unidad_funcional = CAST(p.uf AS INT)
                     AND uf.id_consorcio_unidad_funcional = CAST(p.id_consorcio AS INT)
             )
@@ -473,10 +424,7 @@ BEGIN
                 CAST(p.id_consorcio AS INT) AS id_consorcio_unidad_funcional,
                 p.cvu_cbu
             FROM #PersonasUFConRN p
-            WHERE 
-            p.dni_rn = 1 
-            AND p.cbu_uf_rn = 1
-            AND NOT EXISTS (
+            WHERE NOT EXISTS (
                 SELECT 1
                 FROM gestion.Cuenta_Bancaria_Asociada_UF uf
                 WHERE uf.cbu_cvu = p.cvu_cbu
@@ -489,7 +437,7 @@ BEGIN
             DROP TABLE #PersonasUF
             DROP TABLE #tmp_personas
             DROP TABLE #tmp_personas_UF
-            COMMIT TRANSACTION;
+           COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
         ROLLBACK TRANSACTION;
@@ -609,6 +557,23 @@ GO
 
 -- Tipo_Gasto
 -- Proveedor
+CREATE OR ALTER FUNCTION gestion.fn_nombre_tipo_gasto (
+    @tipoGasto NVARCHAR(100),
+    @proveedor NVARCHAR(100)
+)
+RETURNS NVARCHAR(200)
+AS
+BEGIN
+    RETURN (
+        CASE 
+            WHEN LTRIM(RTRIM(UPPER(@tipoGasto))) = 'SERVICIOS PUBLICOS' 
+                THEN LTRIM(RTRIM(@tipoGasto)) + N' - ' + LTRIM(RTRIM(@proveedor))
+            ELSE LTRIM(RTRIM(@tipoGasto))
+        END
+    )
+END
+GO
+
 CREATE OR ALTER PROCEDURE gestion.sp_importar_tipos_gastos_y_proveedores
     @path NVARCHAR(4000),
     @extraordinarios BIT = 0,
@@ -651,24 +616,26 @@ BEGIN
         UPDATE #tmp_tipos_gastos
         SET consorcio = RTRIM(REPLACE(REPLACE(consorcio, CHAR(13), ''), CHAR(10), ''))
 
-        -- Tipo_Gasto
         INSERT INTO gestion.Tipo_Gasto (nombre, es_extraordinario)
-        SELECT distinct t.tipoGasto, t.es_extraordinario
-        FROM #tmp_tipos_gastos t 
-        where not exists (
-            select 1 from gestion.Tipo_Gasto g
-            where g.nombre = t.tipoGasto
-        );
+		SELECT DISTINCT 
+		    gestion.fn_nombre_tipo_gasto(t.tipoGasto, t.proveedor),
+		    t.es_extraordinario
+		FROM #tmp_tipos_gastos t
+		WHERE NOT EXISTS (
+		    SELECT 1 
+		    FROM gestion.Tipo_Gasto g
+		    WHERE g.nombre = gestion.fn_nombre_tipo_gasto(t.tipoGasto, t.proveedor)
+		);
 
         -- Proveedor
-        with Prov as (
+        ;with Prov as (
             select 
             tg.id as id_tipo_gasto,
             c.id as id_consorcio,
             t.proveedor as proveedor, 
             t.detalle as detalle
             from #tmp_tipos_gastos t 
-            inner join gestion.Tipo_Gasto tg on t.tipoGasto = tg.nombre 
+            inner join gestion.Tipo_Gasto tg on gestion.fn_nombre_tipo_gasto(t.tipoGasto, t.proveedor) = tg.nombre 
             inner join gestion.Consorcio c on t.consorcio = c.nombre 
         )
         insert into gestion.Proveedor(id_tipo_gasto, id_consorcio, nombre, detalle) 
@@ -677,7 +644,7 @@ BEGIN
             select 1 from gestion.Proveedor p
             where p.id_tipo_gasto = pr.id_tipo_gasto 
             and p.id_consorcio = pr.id_consorcio 
-        );
+        )
 
         drop table #tmp_tipos_gastos
         COMMIT TRANSACTION;
@@ -778,8 +745,8 @@ BEGIN
         ;with GastoMes as (
         select
             c.id as consorcio,
-            m.nro as mes,
-            m.anio as anio,
+            cast(m.nro as tinyint) as mes,
+            cast(m.anio as smallint) as anio,
             g.GastosBancarios,
             g.GastosAdministracion,
             g.GastosLimpieza,
@@ -819,8 +786,8 @@ BEGIN
                 ('GASTOS DE LIMPIEZA', g.GastosLimpieza),
                 ('SEGUROS', g.GastosSeguros),
                 ('GASTOS GENERALES', g.GastosGenerales),
-                ('SERVICIOS PUBLICOS', g.GastosAgua),
-                ('SERVICIOS PUBLICOS', g.GastosLuz)
+                ('SERVICIOS PUBLICOS - AYSA', g.GastosAgua),
+                ('SERVICIOS PUBLICOS - EDENOR', g.GastosLuz)
         ) AS x(tipo_gasto, importe)
         INNER JOIN gestion.Tipo_Gasto tg ON tg.nombre = x.tipo_gasto
         WHERE gestion.fn_normalizar_importe(x.importe) IS NOT NULL
@@ -830,7 +797,7 @@ BEGIN
             where gg.mes = g.mes 
             and gg.anio = g.anio 
             and gg.id_consorcio = g.consorcio 
-            and gg.descripcion = x.tipo_gasto
+            and gg.id_tipo_gasto = tg.id
         );
         
         drop table #Mes
@@ -849,93 +816,103 @@ create or alter procedure gestion.sp_importar_gastos_extraordinarios_anio_actual
 	@jsonData NVARCHAR(MAX)
 AS 
 BEGIN 
-	
-	IF OBJECT_ID('tempdb..#GastosJson') IS NOT NULL DROP TABLE #GastosJson
-	IF OBJECT_ID('tempdb..#Mes') IS NOT NULL DROP TABLE #Mes
-	
-	declare @anio_actual int = YEAR(GETDATE())
-	
-	create table #Mes (nro int, mes varchar(20), anio int)
-	INSERT INTO #Mes (nro, mes, anio) VALUES
-	    (1, 'enero', @anio_actual),
-	    (2, 'febrero', @anio_actual),
-	    (3, 'marzo', @anio_actual),
-	    (4, 'abril', @anio_actual),
-	    (5, 'mayo', @anio_actual),
-	    (6, 'junio', @anio_actual),
-	    (7, 'julio', @anio_actual),
-	    (8, 'agosto', @anio_actual),
-	    (9, 'septiembre', @anio_actual),
-	    (10, 'octubre', @anio_actual),
-	    (11, 'noviembre', @anio_actual),
-	    (12, 'diciembre', @anio_actual)
-	
-	SELECT 
-	    JSON_VALUE(j.value, '$."Nombre del consorcio"') AS NombreConsorcio,
-	    LTRIM(RTRIM(LOWER(JSON_VALUE(j.value, '$."Mes"')))) AS Mes,
-	    JSON_VALUE(j.value, '$."PLOMERIA GENERAL"') AS GastosPlomeriaGeneral,
-	    JSON_VALUE(j.value, '$."REPARACION ESTRUCTURAL"') AS GastosReparacionEstructural,
-	    JSON_VALUE(j.value, '$."IMPERMEABILIZACION"') AS GastosImpermeabilizacion,
-	    JSON_VALUE(j.value, '$."REMODELACION"') AS GastosRemodelacion,
-	    JSON_VALUE(j.value, '$."INSTALACION DE SIST. SEGURIDAD"') AS GastosInstalacionSeguridad
-	INTO #GastosJson
-	FROM OPENJSON(@jsonData) AS j
+    BEGIN TRY
+        SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 
-	 
-	;with GastoMes as (
-	select
-		c.id as consorcio,
-		m.nro as mes,
-		m.anio as anio,
-		g.GastosPlomeriaGeneral,
-		g.GastosReparacionEstructural,
-		g.GastosImpermeabilizacion,
-		g.GastosRemodelacion,
-		g.GastosInstalacionSeguridad
-	from #GastosJson g 
-	inner join gestion.Consorcio c on g.NombreConsorcio = c.nombre
-	inner join #Mes m on g.Mes = m.mes
-	)
-	INSERT INTO gestion.Gasto (
-		id_tipo_gasto, 
-		id_consorcio,
-		mes,
-		anio,
-		nro_factura, 
-		importe, 
-		descripcion, 
-		cuotas_totales, 
-		nro_cuota)
-	SELECT 
-	    tg.id AS id_tipo_gasto,
-	    g.consorcio,
-	    g.mes,
-	    g.anio,
-	    null,
-	    gestion.fn_normalizar_importe(x.importe) AS importe,
-	    x.tipo_gasto AS descripcion,
-	    null,
-	    null
-	FROM GastoMes g
-	CROSS APPLY (
-	    VALUES
-	        ('PLOMERIA GENERAL', g.GastosPlomeriaGeneral),
-	        ('REPARACION ESTRUCTURAL', g.GastosReparacionEstructural),
-	        ('IMPERMEABILIZACION', g.GastosImpermeabilizacion),
-	        ('REMODELACION', g.GastosRemodelacion),
-	        ('INSTALACION DE SIST. SEGURIDAD', g.GastosInstalacionSeguridad)
-	) AS x(tipo_gasto, importe)
-	INNER JOIN gestion.Tipo_Gasto tg ON tg.nombre = x.tipo_gasto
-	WHERE gestion.fn_normalizar_importe(x.importe) IS NOT NULL
-	  AND gestion.fn_normalizar_importe(x.importe) > 0
-      AND NOT EXISTS (
-        select 1 from gestion.Gasto gg
-        where gg.mes = g.mes 
-        and gg.anio = g.anio 
-        and gg.id_consorcio = g.consorcio
-      );
-	
-	drop table #Mes
-	drop table #GastosJson
+        BEGIN TRANSACTION;
+        
+        IF OBJECT_ID('tempdb..#GastosJson') IS NOT NULL DROP TABLE #GastosJson
+        IF OBJECT_ID('tempdb..#Mes') IS NOT NULL DROP TABLE #Mes
+        
+        declare @anio_actual int = YEAR(GETDATE())
+        
+        create table #Mes (nro int, mes varchar(20), anio int)
+        INSERT INTO #Mes (nro, mes, anio) VALUES
+            (1, 'enero', @anio_actual),
+            (2, 'febrero', @anio_actual),
+            (3, 'marzo', @anio_actual),
+            (4, 'abril', @anio_actual),
+            (5, 'mayo', @anio_actual),
+            (6, 'junio', @anio_actual),
+            (7, 'julio', @anio_actual),
+            (8, 'agosto', @anio_actual),
+            (9, 'septiembre', @anio_actual),
+            (10, 'octubre', @anio_actual),
+            (11, 'noviembre', @anio_actual),
+            (12, 'diciembre', @anio_actual)
+        
+        SELECT 
+            JSON_VALUE(j.value, '$."Nombre del consorcio"') AS NombreConsorcio,
+            LTRIM(RTRIM(LOWER(JSON_VALUE(j.value, '$."Mes"')))) AS Mes,
+            JSON_VALUE(j.value, '$."PLOMERIA GENERAL"') AS GastosPlomeriaGeneral,
+            JSON_VALUE(j.value, '$."REPARACION ESTRUCTURAL"') AS GastosReparacionEstructural,
+            JSON_VALUE(j.value, '$."IMPERMEABILIZACION"') AS GastosImpermeabilizacion,
+            JSON_VALUE(j.value, '$."REMODELACION"') AS GastosRemodelacion,
+            JSON_VALUE(j.value, '$."INSTALACION DE SIST. SEGURIDAD"') AS GastosInstalacionSeguridad
+        INTO #GastosJson
+        FROM OPENJSON(@jsonData) AS j
+        
+        ;with GastoMes as (
+        select
+            c.id as consorcio,
+            cast(m.nro as tinyint) as mes,
+            cast(m.anio as smallint) as anio,
+            g.GastosPlomeriaGeneral,
+            g.GastosReparacionEstructural,
+            g.GastosImpermeabilizacion,
+            g.GastosRemodelacion,
+            g.GastosInstalacionSeguridad
+        from #GastosJson g 
+        inner join gestion.Consorcio c on g.NombreConsorcio = c.nombre
+        inner join #Mes m on g.Mes = m.mes
+        )
+        INSERT INTO gestion.Gasto (
+            id_tipo_gasto, 
+            id_consorcio,
+            mes,
+            anio,
+            nro_factura, 
+            importe, 
+            descripcion, 
+            cuotas_totales, 
+            nro_cuota)
+        SELECT 
+            tg.id AS id_tipo_gasto,
+            g.consorcio,
+            g.mes,
+            g.anio,
+            null,
+            gestion.fn_normalizar_importe(x.importe) AS importe,
+            x.tipo_gasto AS descripcion,
+            null,
+            null
+        FROM GastoMes g
+        CROSS APPLY (
+            VALUES
+                ('PLOMERIA GENERAL', g.GastosPlomeriaGeneral),
+                ('REPARACION ESTRUCTURAL', g.GastosReparacionEstructural),
+                ('IMPERMEABILIZACION', g.GastosImpermeabilizacion),
+                ('REMODELACION', g.GastosRemodelacion),
+                ('INSTALACION DE SIST. SEGURIDAD', g.GastosInstalacionSeguridad)
+        ) AS x(tipo_gasto, importe)
+        INNER JOIN gestion.Tipo_Gasto tg ON tg.nombre = x.tipo_gasto
+        WHERE gestion.fn_normalizar_importe(x.importe) IS NOT NULL
+        AND gestion.fn_normalizar_importe(x.importe) > 0
+        AND NOT EXISTS (
+            select 1 from gestion.Gasto gg
+            where gg.mes = g.mes 
+            and gg.anio = g.anio 
+            and gg.id_consorcio = g.consorcio
+            and gg.id_tipo_gasto = tg.id
+        );
+        
+        drop table #Mes
+        drop table #GastosJson
+     COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
 END
 GO
