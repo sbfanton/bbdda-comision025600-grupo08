@@ -49,11 +49,8 @@ go
 
 CREATE OR ALTER PROCEDURE gestion.sp_importar_consorcios
     @pathConsorcios NVARCHAR(500),
-    @pathProveedores NVARCHAR(500),
     @rowTerminatorConsorcios NVARCHAR(10) = '\n',
-    @rowTerminatorConsorciosProveedores NVARCHAR(10) = '\r',
-    @fieldTerminatorConsorcios NVARCHAR(10) = ';',
-    @fieldTerminatorConsorciosProveedores NVARCHAR(10) = ';'
+    @fieldTerminatorConsorcios NVARCHAR(10) = ';'
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -63,7 +60,6 @@ BEGIN
 
         BEGIN TRANSACTION;
         IF OBJECT_ID('tempdb..#ConsorcioOrigen') IS NOT NULL DROP TABLE #ConsorcioOrigen;
-        IF OBJECT_ID('tempdb..#ConsorcioProveedores') IS NOT NULL DROP TABLE #ConsorcioProveedores;
 
         CREATE TABLE #ConsorcioOrigen (
             Consorcio NVARCHAR(50),
@@ -73,12 +69,6 @@ BEGIN
             MtsTotales int
         );
 
-        CREATE TABLE #ConsorcioProveedores (
-            tipoGasto NVARCHAR(100),
-            proveedor NVARCHAR(100),
-            cuenta NVARCHAR(100),
-            consorcio NVARCHAR(100)
-        );
 
         DECLARE @sql NVARCHAR(MAX);
         SET @sql = N'
@@ -90,17 +80,6 @@ BEGIN
                 ROWTERMINATOR = ''' + @rowTerminatorConsorcios + '''
             );';
         EXEC sp_executesql @sql;
-
-        DECLARE @sql2 NVARCHAR(MAX);
-        SET @sql2 = N'
-            BULK INSERT #ConsorcioProveedores
-            FROM ''' + @pathProveedores + '''
-            WITH (
-                FIRSTROW = 2,
-                FIELDTERMINATOR = ''' + @fieldTerminatorConsorciosProveedores + ''',
-                ROWTERMINATOR = ''' + @rowTerminatorConsorciosProveedores + '''
-            );';
-        EXEC sp_executesql @sql2;
 
     ALTER TABLE #ConsorcioOrigen
         ADD 
@@ -146,7 +125,6 @@ BEGIN
         )
 
         drop table #ConsorcioOrigen
-        drop table #ConsorcioProveedores
 
         PRINT 'Carga completada correctamente.'
         COMMIT TRANSACTION;
