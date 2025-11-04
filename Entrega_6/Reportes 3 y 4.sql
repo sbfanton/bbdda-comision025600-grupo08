@@ -1,14 +1,29 @@
 
-/*Reporte 3: Presente un cuadro cruzado con la recaudación total desagregada según su procedencia 
-(ordinario, extraordinario, etc.) según el periodo. */
+/*Reporte 3: Presente un cuadro cruzado con la recaudaciÃ³n total desagregada segÃºn su procedencia 
+(ordinario, extraordinario, etc.) segÃºn el periodo. */
 
 CREATE OR ALTER PROCEDURE gestion.sp_reporte_recaudacion_por_procedencia
    @anioInicio INT,
-    @anioFin INT,
-    @idConsorcio INT = NULL
+   @anioFin INT,
+   @idConsorcio INT = NULL
 AS
 BEGIN
     SET NOCOUNT ON;
+
+    WITH RecaudacionMensualConsorcio AS (
+        SELECT 
+            uf.id_consorcio,
+            YEAR(p.fecha) AS Anio,
+            MONTH(p.fecha) AS Mes,
+            SUM(p.importe) AS importe_total
+        FROM gestion.Pago p
+        JOIN gestion.Unidad_Funcional uf 
+            ON uf.id = p.id_unidad_funcional 
+            AND uf.id_consorcio = p.id_consorcio_unidad_funcional
+        WHERE YEAR(p.fecha) BETWEEN @anioInicio AND @anioFin
+          AND (@idConsorcio IS NULL OR uf.id_consorcio = @idConsorcio)
+        GROUP BY uf.id_consorcio, YEAR(p.fecha), MONTH(p.fecha)
+    )
 
     SELECT 
         CONCAT(Mes, '/', Anio) AS Periodo,
@@ -16,33 +31,27 @@ BEGIN
         ISNULL([Extraordinario], 0) AS Extraordinario
     FROM (
         SELECT 
-            YEAR(p.fecha) AS Anio,
-            MONTH(p.fecha) AS Mes,
+            rmc.Anio,
+            rmc.Mes,
             CASE 
                 WHEN tg.es_extraordinario = 1 THEN 'Extraordinario'
                 ELSE 'Ordinario'
             END AS TipoGasto,
-            SUM(p.importe) AS TotalRecaudado
-        FROM gestion.Pago p
-        INNER JOIN gestion.Unidad_Funcional uf 
-            ON uf.id = p.id_unidad_funcional 
-				AND uf.id_consorcio = p.id_consorcio_unidad_funcional
+            MAX(rmc.importe_total) AS TotalRecaudado
+        FROM RecaudacionMensualConsorcio rmc
         LEFT JOIN gestion.Gasto g 
-            ON g.id_consorcio = uf.id_consorcio
+            ON g.id_consorcio = rmc.id_consorcio
         LEFT JOIN gestion.Tipo_Gasto tg 
             ON tg.id = g.id_tipo_gasto
-        WHERE YEAR(p.fecha) BETWEEN @anioInicio AND @anioFin
-          AND (@idConsorcio IS NULL OR uf.id_consorcio = @idConsorcio)
-        GROUP BY YEAR(p.fecha), MONTH(p.fecha), tg.es_extraordinario
+        GROUP BY rmc.Anio, rmc.Mes, tg.es_extraordinario, rmc.importe_total
     ) AS src
     PIVOT (
-        SUM(TotalRecaudado)
+        MAX(TotalRecaudado)
         FOR TipoGasto IN ([Ordinario], [Extraordinario])
     ) AS pvt
     ORDER BY Anio, Mes;
 END;
 GO
-
 
 /*reporte 4: Incluye xml
 Obtenga los 5 (cinco) meses de mayores gastos y los 5 (cinco) de mayores ingresos.
@@ -92,4 +101,5 @@ GO
 EXEC  gestion.sp_reporte_recaudacion_por_procedencia  @anioInicio = 2025, @anioFin = 2025, @idConsorcio = 1;
 
 -- Reporte 4
+
 EXEC gestion.sp_reporte_mayores_ingresos_gastos_xml @id_consorcio = null, @anio_inicio = 2023, @anio_fin = 2025;
