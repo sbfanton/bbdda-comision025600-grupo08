@@ -524,6 +524,226 @@ BEGIN
 	--es correcto eliminar el pago asi nomas? o tengo que crear una tabla de auditoria? eso va en el der?
     DELETE FROM gestion.Pago WHERE id = @id;
 END
-
 GO
 
+
+---------------------------------------------------------------------------eze-------------------------------------------------
+---MODIFICAR PAGO---
+CREATE OR ALTER PROCEDURE gestion.sp_modificar_Pago
+    @id_pago BIGINT,
+    @nuevo_importe DECIMAL(10,2),
+    @nueva_fecha DATETIME
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM gestion.Pago WHERE id = @id_pago)
+        THROW 50000, 'Pago no encontrado.', 1;
+
+    IF @nuevo_importe <= 0
+        THROW 50000, 'El importe debe ser mayor a 0.', 1;
+
+    UPDATE gestion.Pago
+    SET importe = @nuevo_importe,
+        fecha = @nueva_fecha
+    WHERE id = @id_pago;
+END
+GO
+
+
+--------------------------------------------------------------------------------
+-- Tipo_Gasto
+-- (PK: id)
+--------------------------------------------------------------------------------
+
+---ALTA TIPO GASTO---
+CREATE OR ALTER PROCEDURE gestion.sp_alta_Tipo_Gasto
+    @nombre VARCHAR(100),
+    @es_extraordinario BIT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @nombre IS NULL OR LTRIM(RTRIM(@nombre)) = ''
+        THROW 50000, 'Debe indicar un nombre.', 1;
+
+    IF EXISTS (SELECT 1 FROM gestion.Tipo_Gasto WHERE nombre = @nombre)
+        THROW 50000, 'Ya existe un tipo de gasto con ese nombre.', 1;
+
+    INSERT INTO gestion.Tipo_Gasto (nombre, es_extraordinario)
+    VALUES (@nombre, @es_extraordinario);
+END
+GO
+
+---MODIFICAR TIPO GASTO---
+CREATE OR ALTER PROCEDURE gestion.sp_modificar_Tipo_Gasto
+    @id_gasto INT,
+    @nuevo_nombre VARCHAR(100),
+    @nuevo_es_extraordinario BIT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM gestion.Tipo_Gasto WHERE id = @id_gasto)
+        THROW 50000, 'Tipo de gasto no encontrado.', 1;
+
+    IF EXISTS (SELECT 1 FROM gestion.Tipo_Gasto WHERE nombre = @nuevo_nombre)
+        THROW 50000, 'Ya existe un tipo de gasto con ese nombre.', 1;
+
+    UPDATE gestion.Tipo_Gasto
+    SET nombre = @nuevo_nombre,
+        es_extraordinario = @nuevo_es_extraordinario
+    WHERE id = @id_gasto;
+END
+GO
+
+---ELIMINAR TIPO GASTO---
+CREATE OR ALTER PROCEDURE gestion.sp_eliminar_Tipo_Gasto
+    @id_gasto INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM gestion.Tipo_Gasto WHERE id = @id_gasto)
+        THROW 50000, 'Tipo de gasto no encontrado.', 1;
+
+    IF EXISTS (SELECT 1 FROM gestion.Gasto WHERE id_tipo_gasto = @id_gasto)
+        THROW 50000, 'No se puede eliminar: hay gastos asociados a este tipo.', 1;
+
+    DELETE FROM gestion.Tipo_Gasto WHERE id = @id_gasto;
+END
+GO
+
+
+--------------------------------------------------------------------------------
+-- Proveedor
+-- (PK: id)
+--------------------------------------------------------------------------------
+
+---ALTA PROVEEDOR---
+CREATE OR ALTER PROCEDURE gestion.sp_alta_Proveedor
+    @id_tipo_gasto INT,
+    @id_consorcio INT,
+    @nombre VARCHAR(100),
+    @detalle VARCHAR(200)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM gestion.Tipo_Gasto WHERE id = @id_tipo_gasto)
+        THROW 50000, 'Tipo de gasto inexistente.', 1;
+
+    IF NOT EXISTS (SELECT 1 FROM gestion.Consorcio WHERE id = @id_consorcio)
+        THROW 50000, 'Consorcio inexistente.', 1;
+
+    INSERT INTO gestion.Proveedor (id_tipo_gasto, id_consorcio, nombre, detalle)
+    VALUES (@id_tipo_gasto, @id_consorcio, @nombre, @detalle);
+END
+GO
+
+---MODIFICAR PROVEEDOR---
+CREATE OR ALTER PROCEDURE gestion.sp_modificar_Proveedor
+    @id_proveedor INT,
+    @nuevo_nombre VARCHAR(100),
+    @nuevo_detalle VARCHAR(200)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM gestion.Proveedor WHERE id = @id_proveedor)
+        THROW 50000, 'Proveedor no encontrado.', 1;
+
+    UPDATE gestion.Proveedor
+    SET nombre = @nuevo_nombre,
+        detalle = @nuevo_detalle
+    WHERE id = @id_proveedor;
+END
+GO
+
+---ELIMINAR PROVEEDOR---
+CREATE OR ALTER PROCEDURE gestion.sp_eliminar_Proveedor
+    @id_proveedor INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM gestion.Proveedor WHERE id = @id_proveedor)
+        THROW 50000, 'Proveedor no encontrado.', 1;
+
+    DELETE FROM gestion.Proveedor WHERE id = @id_proveedor;
+END
+GO
+
+
+--------------------------------------------------------------------------------
+-- Gasto
+-- (PK: id)
+--------------------------------------------------------------------------------
+
+---ALTA GASTO---
+CREATE OR ALTER PROCEDURE gestion.sp_alta_Gasto
+    @id_tipo_gasto INT,
+    @id_consorcio INT,
+    @mes TINYINT,
+    @anio SMALLINT,
+    @nro_factura VARCHAR(30),
+    @importe DECIMAL(12,2),
+    @descripcion VARCHAR(200),
+    @cuotas_totales SMALLINT = NULL,
+    @nro_cuota SMALLINT = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM gestion.Tipo_Gasto WHERE id = @id_tipo_gasto)
+        THROW 50000, 'Tipo de gasto inexistente.', 1;
+
+    IF NOT EXISTS (SELECT 1 FROM gestion.Consorcio WHERE id = @id_consorcio)
+        THROW 50000, 'Consorcio inexistente.', 1;
+
+    IF @mes NOT BETWEEN 1 AND 12
+        THROW 50000, 'Mes inválido (1-12).', 1;
+
+    IF @anio NOT BETWEEN 2000 AND 2100
+        THROW 50000, 'Año inválido (2000-2100).', 1;
+
+    IF @importe < 0
+        THROW 50000, 'Importe debe ser mayor o igual a 0.', 1;
+
+    INSERT INTO gestion.Gasto (id_tipo_gasto, id_consorcio, mes, anio, nro_factura, importe, descripcion, cuotas_totales, nro_cuota)
+    VALUES (@id_tipo_gasto, @id_consorcio, @mes, @anio, @nro_factura, @importe, @descripcion, @cuotas_totales, @nro_cuota);
+END
+GO
+
+---MODIFICAR GASTO---
+CREATE OR ALTER PROCEDURE gestion.sp_modificar_Gasto
+    @id_gasto INT,
+    @nuevo_importe DECIMAL(12,2),
+    @nueva_descripcion VARCHAR(200)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM gestion.Gasto WHERE id = @id_gasto)
+        THROW 50000, 'Gasto no encontrado.', 1;
+
+    UPDATE gestion.Gasto
+    SET importe = @nuevo_importe,
+        descripcion = @nueva_descripcion
+    WHERE id = @id_gasto;
+END
+GO
+
+---ELIMINAR GASTO---
+CREATE OR ALTER PROCEDURE gestion.sp_eliminar_Gasto
+    @id_gasto INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS (SELECT 1 FROM gestion.Gasto WHERE id = @id_gasto)
+        THROW 50000, 'Gasto no encontrado.', 1;
+
+    DELETE FROM gestion.Gasto WHERE id = @id_gasto;
+END
+GO
