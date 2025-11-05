@@ -894,3 +894,183 @@ BEGIN
     END CATCH
 END
 GO
+
+
+----------------------------------------------------
+----------------------------------------------------
+
+-- Tabla Expensa
+
+create or alter procedure gestion.sp_generar_expensa
+	@id_consorcio int,
+    @mes TINYINT,
+    @anio SMALLINT
+AS 
+BEGIN 
+    BEGIN TRY
+        SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+
+        BEGIN TRANSACTION;
+
+        IF @id_consorcio IS NULL
+            THROW 50000, 'Debe indicar el consorcio', 1;
+        IF @mes IS NULL or @anio IS NULL
+            THROW 50000, 'Debe indicar el mes y el año', 1;
+
+        -- Suma de gastos ordinarios
+        declare @total_gastos_ordinarios decimal(15,2);
+        select 
+            @total_gastos_ordinarios = sum(g.importe)
+        from gestion.Gasto g 
+        inner join gestion.Tipo_Gasto tg on tg.id = g.id_tipo_gasto
+        where g.id_consorcio = @id_consorcio
+        and g.mes = @mes
+        and g.anio = @anio 
+        and tg.es_extraordinario = 0;
+
+        -- Suma de gastos extraordinarios
+        declare @total_gastos_extraordinarios decimal(15,2);
+        select 
+            @total_gastos_extraordinarios = sum(g.importe)
+        from gestion.Gasto g 
+        inner join gestion.Tipo_Gasto tg on tg.id = g.id_tipo_gasto
+        where g.id_consorcio = @id_consorcio
+        and g.mes = @mes
+        and g.anio = @anio 
+        and tg.es_extraordinario = 1;
+
+        -- Ingresos
+        declare @ingresos decimal(15,2);
+        select 
+            @ingresos = sum(p.importe)
+        from gestion.Pago p 
+        where id_consorcio_unidad_funcional = @id_consorcio 
+        and year(p.fecha) = @anio
+        and month(p.fecha) = @mes;
+
+        delete from gestion.Expensa
+        where id_consorcio = @id_consorcio
+        and mes = @mes
+        and anio = @anio 
+
+        insert into gestion.Expensa(
+            id_consorcio,
+            mes,
+            anio,
+            monto_total_ordinarias,
+            monto_total_extraordinarias,
+            ingresos
+        )
+        values (
+            @id_consorcio,
+            @mes,
+            @anio,
+            @total_gastos_ordinarios,
+            @total_gastos_extraordinarios,
+            @ingresos
+        )
+
+     COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END
+GO
+
+----------------------------------------------------
+----------------------------------------------------
+
+-- Tabla Prorrateo
+
+create or alter procedure gestion.sp_generar_prorrateo
+	@id_consorcio int,
+    @mes TINYINT,
+    @anio SMALLINT
+AS 
+BEGIN 
+    BEGIN TRY
+        SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+
+        BEGIN TRANSACTION;
+
+        IF @id_consorcio IS NULL
+            THROW 50000, 'Debe indicar el consorcio', 1;
+        IF @mes IS NULL or @anio IS NULL
+            THROW 50000, 'Debe indicar el mes y el año', 1;
+
+        -- Se busca el id de expensa correspondiente
+        declare @id_expensa int;
+        select @id_expensa = e.id
+        from gestion.Expensa e
+        where e.id_consorcio = @id_consorcio
+          and e.mes = @mes
+          and e.anio = @anio
+
+        if @id_expensa is null
+            throw 50001, 'No existe expensa generada para ese consorcio y período', 1;
+
+        delete from gestion.Prorrateo
+        where id_expensa = @id_expensa
+
+        ;with ExpensaDistribuida as (
+            select 
+            uf.id as id_unidad_funcional,
+            uf.id_consorcio as id_consorcio_unidad_funcional,
+            isnull(sum(p.importe), 0) as saldo_abonado,
+            cast((e.monto_total_ordinarias * uf.porcentaje / 100.0) as decimal(15,2)) as monto_ordinarias,
+            cast((e.monto_total_extraordinarias * uf.porcentaje / 100.0) as decimal(15,2)) as monto_extraordinarias,
+             cast(
+                (e.monto_total_ordinarias * uf.porcentaje / 100.0) +
+                (e.monto_total_extraordinarias * uf.porcentaje / 100.0) -
+                isnull(sum(p.importe), 0)
+            as decimal(12,2)) as deuda
+            from gestion.Expensa e 
+            inner join gestion.Unidad_Funcional uf on uf.id_consorcio = e.id_consorcio
+            left join gestion.Pago p 
+                on p.id_unidad_funcional = uf.id 
+               and p.id_consorcio_unidad_funcional = uf.id_consorcio
+               and year(p.fecha) = @anio
+               and month(p.fecha) = @mes -- REVISAR!!
+            where e.id = @id_expensa 
+            and uf.id_consorcio = @id_consorcio 
+            group by uf.id, uf.id_consorcio, uf.porcentaje, 
+                     e.monto_total_ordinarias, e.monto_total_extraordinarias
+        )
+         insert into gestion.Prorrateo (
+            id_expensa,
+            id_unidad_funcional,
+            id_consorcio_unidad_funcional,
+            saldo_abonado,
+            monto_ordinarias,
+            monto_extraordinarias,
+            deuda,
+            interes_mora
+        )
+        select 
+        @id_expensa as id_expensa,
+        ed.id_unidad_funcional,
+        ed.id_consorcio_unidad_funcional,
+        ed.saldo_abonado,
+        ed.monto_ordinarias,
+        ed.monto_extraordinarias,
+        ed.deuda,
+        cast(
+            case 
+                when ed.deuda > 0
+                then ed.deuda * 0.05
+                else 0
+            end
+        as decimal(12,2)) as interes_mora
+        from ExpensaDistribuida ed;
+        
+
+     COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        if @@trancount > 0 rollback transaction;
+        THROW;
+    END CATCH
+END
+GO
