@@ -215,10 +215,10 @@ END;
 GO   
     
 
-/* Reporte 5
-Obtenga los 3 (tres) propietarios con mayor morosidad. Presente informaci�n de contacto y
-DNI de los propietarios para que la administraci�n los pueda contactar o remitir el tr�mite al
-estudio jur�dico.
+/* Reporte 5 con API
+Obtenga los 3 (tres) propietarios con mayor morosidad. Presente informacion de contacto y
+DNI de los propietarios para que la administracion los pueda contactar o remitir el tramite al
+estudio juridico.
 */
 CREATE OR ALTER PROCEDURE gestion.sp_reporte_top_morosos
     @IdConsorcio INT = NULL,            -- filtra por consorcio (opcional)
@@ -247,12 +247,12 @@ BEGIN
     -- Extraer la respuesta a una variable
     SELECT @respuesta = respuesta FROM @json
 
-    -- 🔹 Extraer solo el valor del dólar en pesos argentinos (USD → ARS)
+    -- Extraer USD -> ARS
     --DECLARE @usd_to_ars FLOAT = JSON_VALUE(@respuesta, '$.rates.ARS')
     DECLARE @usd_to_ars FLOAT = JSON_VALUE(@respuesta, '$.blue.value_avg');
     SET @usd_to_ars = CAST(ROUND(@usd_to_ars, 2) AS DECIMAL(10,2));
 
-    -- 🔹 Si querés la inversa (ARS → USD)
+    -- ARS -> USD
     DECLARE @ars_to_usd FLOAT = ROUND(1 / @usd_to_ars, 6);
 
     WITH TotalGastos AS (
@@ -279,9 +279,10 @@ BEGIN
             per.id_tipo_documento,
             per.apellido + ', ' + per.nombre AS nombre_completo,
             per.telefono,
-            ISNULL(g.total_gastos, 0) AS total_gastos,
+            pro.deuda,
+            /*ISNULL(g.total_gastos, 0) AS total_gastos,
             ISNULL(p.total_pagado, 0) AS total_pagado,
-            ISNULL(g.total_gastos, 0) - ISNULL(p.total_pagado, 0) AS deuda,
+            ISNULL(g.total_gastos, 0) - ISNULL(p.total_pagado, 0) AS deuda,*/
             uf.id_consorcio
         FROM gestion.Persona per
         JOIN gestion.Unidad_Funcional_Persona ufp
@@ -289,19 +290,21 @@ BEGIN
         JOIN gestion.Unidad_Funcional uf
             ON uf.id = ufp.id_unidad_funcional
             AND uf.id_consorcio = ufp.id_consorcio_unidad_funcional
-        LEFT JOIN TotalGastos g 
+        /*LEFT JOIN TotalGastos g 
             ON g.id_unidad_funcional = uf.id 
             AND g.id_consorcio = uf.id_consorcio
         LEFT JOIN TotalPagos p 
             ON p.id_unidad_funcional = uf.id 
-            AND p.id_consorcio = uf.id_consorcio
+            AND p.id_consorcio = uf.id_consorcio*/
+        LEFT JOIN gestion.Prorrateo pro
+            ON pro.id_unidad_funcional = uf.id
     )
     SELECT TOP (@TopCantidad)
         nombre_completo,
         nro_doc,
         telefono,
-        total_gastos,
-        total_pagado,
+        /*total_gastos,
+        total_pagado,*/
         deuda,
         CAST(ROUND(deuda / @usd_to_ars, 2) AS DECIMAL(10,2)) AS deuda_usd
     FROM Morosidad
