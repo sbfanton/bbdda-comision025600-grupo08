@@ -220,7 +220,6 @@ Obtenga los 3 (tres) propietarios con mayor morosidad. Presente informaci�n de
 DNI de los propietarios para que la administraci�n los pueda contactar o remitir el tr�mite al
 estudio jur�dico.
 */
-GO
 CREATE OR ALTER PROCEDURE gestion.sp_reporte_top_morosos
     @IdConsorcio INT = NULL,            -- filtra por consorcio (opcional)
     @TopCantidad INT = 3,               -- cantidad de morosos a mostrar
@@ -228,6 +227,34 @@ CREATE OR ALTER PROCEDURE gestion.sp_reporte_top_morosos
     @DeudaMaxima DECIMAL(18,2) = -1     -- filtra morosos con deuda menor a este valor, -1 para que no se considere
 AS
 BEGIN
+    --DECLARE @url NVARCHAR(256) = 'https://open.er-api.com/v6/latest/USD'
+    DECLARE @url NVARCHAR(256) = 'https://api.bluelytics.com.ar/v2/latest';
+
+    DECLARE @Object INT
+    DECLARE @json TABLE(respuesta NVARCHAR(MAX))
+    DECLARE @respuesta NVARCHAR(MAX)
+
+    -- Crear objeto HTTP
+    EXEC sp_OACreate 'MSXML2.XMLHTTP', @Object OUT
+    EXEC sp_OAMethod @Object, 'OPEN', NULL, 'GET', @url, 'FALSE'
+    EXEC sp_OAMethod @Object, 'SEND'
+    EXEC sp_OAMethod @Object, 'RESPONSETEXT', @respuesta OUTPUT
+
+    -- Guardar la respuesta JSON en la tabla
+    INSERT @json
+    EXEC sp_OAGetProperty @Object, 'RESPONSETEXT'
+
+    -- Extraer la respuesta a una variable
+    SELECT @respuesta = respuesta FROM @json
+
+    -- 🔹 Extraer solo el valor del dólar en pesos argentinos (USD → ARS)
+    --DECLARE @usd_to_ars FLOAT = JSON_VALUE(@respuesta, '$.rates.ARS')
+    DECLARE @usd_to_ars FLOAT = JSON_VALUE(@respuesta, '$.blue.value_avg');
+    SET @usd_to_ars = CAST(ROUND(@usd_to_ars, 2) AS DECIMAL(10,2));
+
+    -- 🔹 Si querés la inversa (ARS → USD)
+    DECLARE @ars_to_usd FLOAT = ROUND(1 / @usd_to_ars, 6);
+
     WITH TotalGastos AS (
         SELECT 
             uf.id AS id_unidad_funcional,
@@ -258,8 +285,7 @@ BEGIN
             uf.id_consorcio
         FROM gestion.Persona per
         JOIN gestion.Unidad_Funcional_Persona ufp
-            ON per.nro_doc = ufp.nro_doc_persona 
-            AND per.id_tipo_documento = ufp.id_tipo_doc_persona
+            ON per.id = ufp.id_persona
         JOIN gestion.Unidad_Funcional uf
             ON uf.id = ufp.id_unidad_funcional
             AND uf.id_consorcio = ufp.id_consorcio_unidad_funcional
@@ -276,15 +302,18 @@ BEGIN
         telefono,
         total_gastos,
         total_pagado,
-        deuda
+        deuda,
+        CAST(ROUND(deuda / @usd_to_ars, 2) AS DECIMAL(10,2)) AS deuda_usd
     FROM Morosidad
     WHERE (@IdConsorcio IS NULL OR id_consorcio = @IdConsorcio)
       AND deuda > @DeudaMinima
       AND (@DeudaMaxima < 0 OR deuda <= @DeudaMaxima)
     ORDER BY deuda DESC
-    FOR XML PATH('Moroso'), ROOT('TopMorosos');
+    FOR XML PATH('TopMorosos'), ROOT('Morosidad')
 END;
 GO
+
+EXEC gestion.sp_reporte_top_morosos;
 
 
 /* Reporte 6
