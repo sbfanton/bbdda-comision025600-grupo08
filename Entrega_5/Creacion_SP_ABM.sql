@@ -1,187 +1,281 @@
 USE Com5600G08
 GO
---PROCEDIMIENTOS PARA AMB TIPO_DOCUMENTO
---ALTA
---------------------------------------------------------------------------lucas--------------------------------------------------
-CREATE PROCEDURE ALTA_TIPO_DOCUMENTO
-	@id_nuevo varchar(5),
-	@descripcion_nueva varchar(100)
-AS
-BEGIN 
-	INSERT INTO GESTION.TIPO_DOCUMENTO VALUES (@id_nuevo,@descripcion_nueva)
-END
+--------------------------------------------------------------------------------
+-- Tipo_Documento
+--------------------------------------------------------------------------------
 
---BAJA
-CREATE PROCEDURE BAJA_TIPO_DOCUMENTO 
-	@id_baja varchar(5)
-AS
-BEGIN 
-	delete from GESTION.TIPO_DOCUMENTO where tipo_documento.id=@id_baja
-END
-
---MODIFICACION
-CREATE PROCEDURE MODIFICACION_TIPO_DOCUMENTO 
-	@tipo_doc_modi varchar(100),
-	@id_modi varchar(5)
-AS
-BEGIN 
-	update GESTION.TIPO_DOCUMENTO set descripcion = @tipo_doc_modi
-	where id = @id_modi
-END
-
---pruebas de las SP
-exec alta_tipo_documento 'PAS', 'Pasaporte'
-exec baja_tipo_documento 'PAS'
-exec MODIFICACION_TIPO_DOCUMENTO 'otro_doc', 'PAS'
-
-SELECT * FROM gestion.Tipo_Documento
------------------------------------------PERSONA---------------------------------------------------
---ALTA PERSONA
-CREATE PROCEDURE ALTA_PERSONA
-	@nro_doc int,
-	@dni varchar(5),
-	@nombre varchar(100),
-	@apellido varchar(100),
-	@email varchar(150),
-	@telefono varchar(30)
-AS
-BEGIN 
-	INSERT INTO GESTION.Persona VALUES (@nro_doc,@dni,@nombre,@apellido,@email,@telefono)
-END
-
---BAJA PERSONA
-CREATE PROCEDURE BAJA_PERSONA 
-	@NRO_DOC INT
-AS
-BEGIN 
-	delete from GESTION.Persona where PERSONA.nro_doc=@NRO_DOC
-END
-
-
---------MODIFICACION---------
---EMAIL-- 
-CREATE PROCEDURE MODIFICACION_PERSONA_EMAIL
-	@NRO_DOC INT,
-	@email_modificar varchar(150)
-AS
-BEGIN 
-	update GESTION.Persona set persona.email=@email_modificar
-	where persona.nro_doc=@NRO_DOC
-END
-
---TELEFONO--
-CREATE PROCEDURE MODIFICACION_PERSONA_TELEFONO
-	@NRO_DOC INT,
-	@telefono varchar(30)
-AS
-BEGIN 
-	update GESTION.Persona set persona.telefono=@telefono
-	where persona.nro_doc=@NRO_DOC
-END
-
-exec ALTA_PERSONA 12345678, 'DNI', 'ARMANDO', 'BARRERA', 'X@HOTMAIL.COM', '987654321' 
-exec BAJA_PERSONA 12345678
-exec MODIFICACION_PERSONA_EMAIL 12345678, 'seymourskinner@gmail.com'
-exec MODIFICACION_PERSONA_TELEFONO 12345678, '87654321'
-
-SELECT * FROM GESTION.Persona
-where Persona.nro_doc=12345678
------------------------------------------CONSORCIO---------------------------------------------------
-select * from gestion.Consorcio
-
---ALTA CONSORCIO
-CREATE PROCEDURE ALTA_CONSORCIO
-	@id int,
-	@nombre varchar(100),
-	@calle varchar(100),
-	@nro int,
-	@localidad varchar(100),
-	@provincia varchar(100),
-	@cuit char(13),
-	@razon_social varchar(100),
-	@banco varchar(50),
-	@cbu_cvu char(22)
-AS
-BEGIN 
-	INSERT INTO GESTION.Consorcio VALUES (@id,@nombre,@calle,@nro,@localidad,@provincia,@cuit,@razon_social,@banco,@cbu_cvu)
-END
-
---BAJA CONSORCIO
-CREATE PROCEDURE BAJA_CONSORCIO
-	@id INT
-AS
-BEGIN 
-	delete from GESTION.Consorcio where Consorcio.id=@id
-END
-
---MODIFICACION CONSORCIO
-CREATE PROCEDURE MODIFICACION_CONSORCIO_NOMBRE
-	@id INT,
-	@nombre varchar(100)
-AS
-BEGIN 
-	update GESTION.Consorcio set nombre=@nombre
-	where Consorcio.id=@id
-END
----UBICACION DEL CONSORCIO
-CREATE PROCEDURE MODIFICACION_CONSORCIO_UBICACION
-	@id INT,
-	@calle varchar(100),
-	@nro int,
-	@localidad varchar(100),
-	@provincia varchar(100)
-AS
-BEGIN 
-	update GESTION.Consorcio set calle=@calle, nro=@nro, localidad=@localidad, provincia=@provincia 
-	where Consorcio.id=@id
-END
----DATOS SOCIALES Y DEL BANCO
-CREATE PROCEDURE MODIFICACION_CONSORCIO_social
-	@id INT,
-	@cuit char(13),
-	@razon_social varchar(100),
-	@banco varchar(50),
-	@cbu_cvu char(22)
-AS
-BEGIN 
-	update GESTION.Consorcio set cuit=@cuit, razon_social=@razon_social, banco=@banco, cbu_cvu=@cbu_cvu 
-	where Consorcio.id=@id
-END
-
----PRUEBAS DE LAS SP
-select * from gestion.Consorcio
-exec ALTA_CONSORCIO 6,'Hola','Corrientes',4321,'Laferrere','Buenos Aires',NULL,NULL,'BANCO PROVINCIA',NULL
-EXEC BAJA_CONSORCIO 6
-EXEC MODIFICACION_CONSORCIO_NOMBRE 6, 'Armando Barrera'
-EXEC MODIFICACION_CONSORCIO_UBICACION 6, 'Belgrano',3250,'Ciudad Aut noma de Buenos Aires','Ciudad Aut noma de Buenos Aires'
-exec MODIFICACION_CONSORCIO_social 6,'20-12345678-8','BBVA FRANC S','BANCO SRL','1351324324312345678912'
------------------------------------------UNIDAD FUNCIONAL---------------------------------------------------
----ALTA UNIDAD FUNCIONAL
-CREATE PROCEDURE ALTA_UF
-	@id int,
-	@id_consorcio int,
-	@piso varchar(10),
-	@depto varchar(10),
-	@porcentaje decimal(5,2),
-	@superficie_m2 decimal(7,2),
-	@tiene_cochera bit,
-	@tiene_baulera bit
+CREATE OR ALTER PROCEDURE gestion.sp_alta_Tipo_Documento
+    @id VARCHAR(5),
+    @descripcion VARCHAR(100)
 AS
 BEGIN
-	INSERT INTO GESTION.Unidad_Funcional VALUES(@id,@id_consorcio,@piso,@depto,@porcentaje,@superficie_m2,@tiene_cochera,@tiene_baulera)	
+    SET NOCOUNT ON;
+
+    IF @id IS NULL OR LTRIM(RTRIM(@id)) = ''
+        THROW 50000, 'Debe indicar id del tipo de documento.', 1;
+
+    IF EXISTS(SELECT 1 FROM gestion.Tipo_Documento WHERE id = @id)
+        THROW 50000, 'Ya existe un Tipo_Documento con ese id.', 1;
+
+    INSERT INTO gestion.Tipo_Documento(id, descripcion)
+    VALUES (@id, @descripcion);
 END
+GO
 
----PRUEBA ALTA UF
-select * from gestion.Unidad_Funcional
-where Unidad_Funcional.id=50 and id_consorcio=5
+CREATE OR ALTER PROCEDURE gestion.sp_modificar_Tipo_Documento
+    @id VARCHAR(5),
+    @descripcion VARCHAR(100)
+AS
+BEGIN
+    SET NOCOUNT ON;
 
-EXEC ALTA_UF 50 , 5, 'PA', 'C', 3.2 ,32.24, 1, 1
+    IF NOT EXISTS(SELECT 1 FROM gestion.Tipo_Documento WHERE id = @id)
+        THROW 50000, 'Tipo_Documento no encontrado.', 1;
+
+    UPDATE gestion.Tipo_Documento
+    SET descripcion = @descripcion
+    WHERE id = @id;
+END
+GO
+
+CREATE OR ALTER PROCEDURE gestion.sp_eliminar_Tipo_Documento
+    @id VARCHAR(5)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF EXISTS(SELECT 1 FROM gestion.Persona WHERE id_tipo_documento = @id)
+        THROW 50000, 'No se puede eliminar Tipo_Documento: existen Personas asociadas.', 1;
+	IF NOT EXISTS(SELECT 1 FROM gestion.Persona WHERE id_tipo_documento = @id)
+        THROW 50000, 'No existen Tipo_Documento.', 1;
 
 
+    DELETE FROM gestion.Tipo_Documento WHERE id = @id;
+END
+GO
 
+--------------------------------------------------------------------------------
+-- Persona (PK: nro_doc, id_tipo_documento)
+--------------------------------------------------------------------------------
+select top 10* from gestion.persona
 
-delete from gestion.unidad_funcional
-where Unidad_Funcional.id=50 and id_consorcio=5
+CREATE OR ALTER PROCEDURE gestion.sp_alta_Persona
+	@nro_doc INT,
+    @id_tipo_documento VARCHAR(5),
+    @nombre VARCHAR(100),
+    @apellido VARCHAR(100),
+    @email VARCHAR(150) = NULL,
+    @telefono VARCHAR(30) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @nro_doc IS NULL OR @nro_doc <= 0
+        THROW 50000, 'Nro_doc inválido.', 1;
+    IF @id_tipo_documento IS NULL OR LTRIM(RTRIM(@id_tipo_documento)) = ''
+        THROW 50000, 'Debe indicar id_tipo_documento.', 1;
+    IF @nombre IS NULL OR LTRIM(RTRIM(@nombre)) = ''
+        THROW 50000, 'Nombre obligatorio.', 1;
+    IF @apellido IS NULL OR LTRIM(RTRIM(@apellido)) = ''
+        THROW 50000, 'Apellido obligatorio.', 1;
+
+    IF NOT EXISTS(SELECT 1 FROM gestion.Tipo_Documento WHERE id = @id_tipo_documento)
+        THROW 50000, 'Tipo de documento no existe.', 1;
+
+    IF EXISTS(SELECT 1 FROM gestion.Persona WHERE nro_doc = @nro_doc AND id_tipo_documento = @id_tipo_documento)
+        THROW 50000, 'Ya existe una Persona con ese documento.', 1;
+
+    INSERT INTO gestion.Persona (nro_doc, id_tipo_documento, nombre, apellido, email, telefono)
+    VALUES (@nro_doc, @id_tipo_documento, @nombre, @apellido, @email, @telefono);
+END
+GO
+
+CREATE OR ALTER PROCEDURE gestion.sp_modificar_Persona
+    @id_persona INT,
+	@nro_doc INT,
+    @id_tipo_documento VARCHAR(5),
+    @nombre VARCHAR(100),
+    @apellido VARCHAR(100),
+    @email VARCHAR(150) = NULL,
+    @telefono VARCHAR(30) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS(SELECT 1 FROM gestion.Persona WHERE id = @id_persona)
+        THROW 50000, 'Id de persona no encontrado.', 1;
+
+	IF @nro_doc IS NULL OR @nro_doc <= 0
+        THROW 50000, 'Nro_doc inválido.', 1;
+    IF @id_tipo_documento IS NULL OR LTRIM(RTRIM(@id_tipo_documento)) = ''
+        THROW 50000, 'Debe indicar id_tipo_documento.', 1;
+    IF @nombre IS NULL OR LTRIM(RTRIM(@nombre)) = ''
+        THROW 50000, 'Nombre obligatorio.', 1;
+    IF @apellido IS NULL OR LTRIM(RTRIM(@apellido)) = ''
+        THROW 50000, 'Apellido obligatorio.', 1;
+
+    IF NOT EXISTS(SELECT 1 FROM gestion.Tipo_Documento WHERE id = @id_tipo_documento)
+        THROW 50000, 'Tipo de documento no existe.', 1;
+
+	IF EXISTS(SELECT 1 FROM gestion.Persona 
+			  WHERE nro_doc = @nro_doc 
+				AND id_tipo_documento = @id_tipo_documento 
+				AND id <> @id_persona)
+    THROW 50000, 'Ya existe una Persona con ese documento.', 1;
+
+	IF @email IS NOT NULL AND LTRIM(RTRIM(@email)) NOT LIKE '_%@_%._%'
+		THROW 50000, 'Email no válido.', 1;
+	IF @telefono IS NOT NULL AND LTRIM(RTRIM(@telefono)) LIKE '%[^0-9+ -]%'
+		THROW 50000, 'Teléfono no válido.', 1;
+
+	IF (
+        (@telefono IS NULL OR LTRIM(RTRIM(@telefono)) = '')
+        AND
+        (@email IS NULL OR LTRIM(RTRIM(@email)) = '')
+	)
+		THROW 50000, 'Debe ingresar al menos un teléfono o email.', 1;
+
+	UPDATE gestion.Persona
+	SET nro_doc = @nro_doc,
+		id_tipo_documento = @id_tipo_documento,
+		nombre = @nombre,
+		apellido = @apellido,
+		email = @email,
+		telefono = @telefono
+	WHERE id = @id_persona;
+END
+GO
+
+CREATE OR ALTER PROCEDURE gestion.sp_eliminar_Persona
+    @id_persona INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+	IF NOT EXISTS(SELECT 1 FROM gestion.Persona WHERE id = @id_persona)
+        THROW 50000, 'No existen Persona con el ID ingresado.', 1;
+
+    IF EXISTS(
+        SELECT 1 FROM gestion.Unidad_Funcional_Persona
+        WHERE id_persona = @id_persona
+    )
+        THROW 50000, 'No se puede eliminar Persona: tiene relaciones en Unidad_Funcional_Persona.', 1;
+
+    DELETE FROM gestion.Persona
+    WHERE id = @id_persona;
+END
+GO
+
+--------------------------------------------------------------------------------
+-- Consorcio (PK: id)
+--------------------------------------------------------------------------------
+
+CREATE OR ALTER PROCEDURE gestion.sp_alta_Consorcio
+    @id INT,
+    @nombre VARCHAR(100),
+    @calle VARCHAR(100),
+    @nro INT,
+    @localidad VARCHAR(100),
+    @provincia VARCHAR(100)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF @id IS NULL
+        THROW 50000, 'Id obligatorio.', 1;
+    IF @nombre IS NULL OR LTRIM(RTRIM(@nombre)) = ''
+        THROW 50000, 'Nombre obligatorio.', 1;
+    IF @calle IS NULL OR LTRIM(RTRIM(@calle)) = ''
+        THROW 50000, 'Calle obligatorio.', 1;
+    IF @nro IS NULL OR @nro <= 0
+        THROW 50000, 'Nro obligatorio y mayor a 0.', 1;
+    IF EXISTS(SELECT 1 FROM gestion.Consorcio WHERE id = @id)
+        THROW 50000, 'Ya existe un Consorcio con ese id.', 1;
+
+    INSERT INTO gestion.Consorcio (id, nombre, calle, nro, localidad, provincia)
+    VALUES (@id,@nombre,@calle,@nro,@localidad,@provincia);
+END
+GO
+
+CREATE OR ALTER PROCEDURE gestion.sp_modificar_Consorcio
+    @id INT,
+    @nombre VARCHAR(100),
+    @calle VARCHAR(100),
+    @nro INT,
+    @localidad VARCHAR(100),
+    @provincia VARCHAR(100)
+AS
+BEGIN
+    SET NOCOUNT ON;
+    IF NOT EXISTS(SELECT 1 FROM gestion.Consorcio WHERE id = @id)
+        THROW 50000, 'Consorcio no encontrado.', 1;
+
+    UPDATE gestion.Consorcio
+    SET nombre = @nombre,
+        calle = @calle,
+        nro = @nro,
+        localidad = @localidad,
+        provincia = @provincia
+    WHERE id = @id;
+END
+GO
+
+CREATE OR ALTER PROCEDURE gestion.sp_eliminar_Consorcio
+    @id INT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+	IF NOT EXISTS(SELECT 1 FROM gestion.Consorcio WHERE id = @id)
+    BEGIN
+        THROW 50000, 'No existen id consorcio.', 1;
+    END
+
+    IF EXISTS(SELECT 1 FROM gestion.Unidad_Funcional WHERE id_consorcio = @id)
+        THROW 50000, 'No se puede eliminar Consorcio: existen Unidades Funcionales asociadas.', 1;
+
+    IF EXISTS(SELECT 1 FROM gestion.Proveedor WHERE id_consorcio = @id)
+        THROW 50000, 'No se puede eliminar Consorcio: existen Proveedores asociados.', 1;
+
+    IF EXISTS(SELECT 1 FROM gestion.Gasto WHERE id_consorcio = @id)
+        THROW 50000, 'No se puede eliminar Consorcio: existen Gastos asociados.', 1;
+
+    DELETE FROM gestion.Consorcio WHERE id = @id;
+END
+GO
+
+--------------------------------------------------------------------------------
+-- Unidad_Funcional (PK: id, id_consorcio)
+--------------------------------------------------------------------------------
+
+CREATE OR ALTER PROCEDURE gestion.sp_alta_Unidad_Funcional
+    @id INT,
+    @id_consorcio INT,
+    @piso VARCHAR(10),
+    @depto VARCHAR(10),
+    @porcentaje DECIMAL(5,2),
+    @superficie_m2 DECIMAL(7,2),
+    @tiene_cochera BIT = 0,
+    @tiene_baulera BIT = 0
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @id IS NULL OR @id_consorcio IS NULL
+        THROW 50000, 'Id de unidad y id_consorcio obligatorios.', 1;
+    IF NOT EXISTS(SELECT 1 FROM gestion.Consorcio WHERE id = @id_consorcio)
+        THROW 50000, 'Consorcio no existe.', 1;
+    IF EXISTS(SELECT 1 FROM gestion.Unidad_Funcional WHERE id = @id AND id_consorcio = @id_consorcio)
+        THROW 50000, 'Ya existe la Unidad Funcional en ese Consorcio.', 1;
+    IF @porcentaje <= 0 OR @porcentaje > 100
+        THROW 50000, 'Porcentaje fuera de rango (0,100].', 1;
+    IF @superficie_m2 <= 0
+        THROW 50000, 'Superficie debe ser > 0.', 1;
+
+    INSERT INTO gestion.Unidad_Funcional (id, id_consorcio, piso, depto, porcentaje, superficie_m2, tiene_cochera, tiene_baulera)
+    VALUES (@id, @id_consorcio, @piso, @depto, @porcentaje, @superficie_m2, @tiene_cochera, @tiene_baulera);
+END
+GO
+	
 ---------------------------------------------------------------------------leila-------------------------------------------------
 
 --MODIFICAR UNIDAD FUNCIONAL-----
@@ -746,4 +840,5 @@ BEGIN
 
     DELETE FROM gestion.Gasto WHERE id = @id_gasto;
 END
+
 GO
