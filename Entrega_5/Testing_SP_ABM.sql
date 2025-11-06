@@ -1,10 +1,25 @@
-
 USE Com5600G08
 GO
 
 ---------------------------------
 		/*TESTING*/
 ---------------------------------
+	
+--------------------LUCAS-------------------------------------------------------
+
+------------------------------------------------------------------
+		/*PRUEBA DE LAS SP DE TIPO_DOC*/
+------------------------------------------------------------------
+
+--VISUALIZAR TABLA
+SELECT * FROM gestion.Tipo_Documento
+--DATO NUEVO, EJECUTAR 2 VECES para visualizar la no insercion por duplicado
+exec alta_tipo_documento 'PAS', 'Pasaporte'
+--DATO A ELIMINAR, EJECUTAR 2 VECES para visualizar la no eliminacion de un tipo de doc no existente
+exec baja_tipo_documento 'PAS'
+--DATO A MODIFICAR, EJECUTAR 2 VECES para visualizar la no modificaciones de un tipo de doc no existente
+exec MODIFICACION_TIPO_DOCUMENTO 'otro_doc', 'PAS'
+
 
 -----------UF LOTE-------------
 
@@ -201,3 +216,4 @@ EXEC gestion.sp_eliminar_Pago @id = 99999;
 --Caso exitoso
 EXEC gestion.sp_eliminar_Pago @id = 1;
 EXEC gestion.sp_eliminar_Pago @id = 2;
+
