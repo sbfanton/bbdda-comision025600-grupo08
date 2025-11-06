@@ -118,4 +118,5 @@ EXEC gestion.sp_modelo_expensa @FraseClaveCargadaPorUsuario = N'QuieroMiPanDanes
     @id_consorcio = 1,
     @mes = 5,
     @anio = 2025;
+    
 EXEC gestion.sp_modelo_expensa @id_consorcio = 1, @mes = 5, @anio = 2025; -- SIN CIFRAR

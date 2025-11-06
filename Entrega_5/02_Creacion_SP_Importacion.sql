@@ -920,7 +920,7 @@ BEGIN
         -- Suma de gastos ordinarios
         declare @total_gastos_ordinarios decimal(15,2);
         select 
-            @total_gastos_ordinarios = sum(g.importe)
+            @total_gastos_ordinarios = isnull(sum(g.importe), 0)
         from gestion.Gasto g 
         inner join gestion.Tipo_Gasto tg on tg.id = g.id_tipo_gasto
         where g.id_consorcio = @id_consorcio
@@ -931,7 +931,7 @@ BEGIN
         -- Suma de gastos extraordinarios
         declare @total_gastos_extraordinarios decimal(15,2);
         select 
-            @total_gastos_extraordinarios = sum(g.importe)
+            @total_gastos_extraordinarios = isnull(sum(g.importe), 0)
         from gestion.Gasto g 
         inner join gestion.Tipo_Gasto tg on tg.id = g.id_tipo_gasto
         where g.id_consorcio = @id_consorcio
@@ -942,7 +942,7 @@ BEGIN
         -- Ingresos
         declare @ingresos decimal(15,2);
         select 
-            @ingresos = sum(p.importe)
+            @ingresos = isnull(sum(p.importe), 0)
         from gestion.Pago p 
         where id_consorcio_unidad_funcional = @id_consorcio 
         and year(p.fecha) = @anio
