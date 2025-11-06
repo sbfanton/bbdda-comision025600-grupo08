@@ -271,6 +271,7 @@ EXEC gestion.sp_desencriptar_datos_cbu_pago
 
 EXEC gestion.sp_desencriptar_datos_persona
 @FraseClaveCargadaPorUsuario = N'QuieroMiPanDanes';
+GO
 
 -- LO QUE SIGUE:
 --MODIFICACIONES DE SP QUE USAN CBU_CVU Y CBU_CVU_ORIGEN--
@@ -708,6 +709,72 @@ SELECT TOP 20
     cbu_cvu_origen_Hash
 FROM gestion.Pago
 --WHERE fecha = '2025-11-01'
+GO
+
+
+--------------------------------------------------------------------------------
+-- Reportes
+--------------------------------------------------------------------------------\
+
+-- Top Morosos
+CREATE OR ALTER PROCEDURE gestion.sp_reporte_top_morosos
+    @FraseClaveCargadaPorUsuario NVARCHAR(128),
+    @IdConsorcio INT = NULL,
+    @TopCantidad INT = 3,
+    @DeudaMinima DECIMAL(18,2) = 0,
+    @DeudaMaxima DECIMAL(18,2) = -1
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    DECLARE @url NVARCHAR(256) = 'https://open.er-api.com/v6/latest/USD' 
+    DECLARE @Object INT 
+    DECLARE @json TABLE(respuesta NVARCHAR(MAX)) 
+    DECLARE @respuesta NVARCHAR(MAX) -- Crear objeto HTTP 
+
+    EXEC sp_OACreate 'MSXML2.XMLHTTP', @Object OUT 
+    EXEC sp_OAMethod @Object, 'OPEN', NULL, 'GET', @url, 'FALSE' 
+    EXEC sp_OAMethod @Object, 'SEND' 
+    EXEC sp_OAMethod @Object, 'RESPONSETEXT', @respuesta OUTPUT -- Guardar la respuesta JSON en la tabla 
+
+    INSERT @json 
+    EXEC sp_OAGetProperty @Object, 'RESPONSETEXT' -- Extraer la respuesta a una variable 
+
+    SELECT @respuesta = respuesta FROM @json 
+    DECLARE @usd_to_ars FLOAT = JSON_VALUE(@respuesta, '$.rates.ARS') 
+
+    ;WITH Morosidad AS (
+        SELECT 
+            per.id,
+            uf.id_consorcio,
+            pro.deuda,
+            per.nro_doc_Cifrado,
+            per.nombre_Cifrado,
+            per.apellido_Cifrado,
+            per.telefono_Cifrado
+        FROM gestion.Persona per
+        JOIN gestion.Unidad_Funcional_Persona ufp ON per.id = ufp.id_persona
+        JOIN gestion.Unidad_Funcional uf ON uf.id = ufp.id_unidad_funcional
+            AND uf.id_consorcio = ufp.id_consorcio_unidad_funcional
+        LEFT JOIN gestion.Prorrateo pro ON pro.id_unidad_funcional = uf.id
+    )
+    SELECT TOP (@TopCantidad)
+        CONVERT(NVARCHAR(50), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, m.nro_doc_Cifrado)) AS nro_doc,
+        CONVERT(VARCHAR(200), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, m.nombre_Cifrado)) + ', ' +
+            CONVERT(VARCHAR(200), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, m.apellido_Cifrado)) AS nombre_y_apellido,
+        CONVERT(VARCHAR(100), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, m.telefono_Cifrado)) AS telefono,
+        m.deuda,
+        CAST(ROUND(m.deuda / @usd_to_ars, 2) AS DECIMAL(10,2)) AS deuda_usd
+    FROM Morosidad m
+    WHERE (@IdConsorcio IS NULL OR m.id_consorcio = @IdConsorcio)
+      AND m.deuda > @DeudaMinima
+      AND (@DeudaMaxima < 0 OR m.deuda <= @DeudaMaxima)
+    ORDER BY m.deuda DESC
+    FOR XML PATH('TopMorosos'), ROOT('Morosidad');
+END;
+GO
+
+EXEC gestion.sp_reporte_top_morosos @FraseClaveCargadaPorUsuario = N'QuieroMiPanDanes';
 
 
 --ULTIMO PASO
