@@ -17,8 +17,7 @@ go
 
 -- Consorcio
 EXEC gestion.sp_importar_consorcios
-     @pathConsorcios = N'/var/opt/mssql/pruebas/datos-varios-consorcios.csv',
-     @pathProveedores = N'/var/opt/mssql/pruebas/datos-varios-proveedores.csv';
+     @pathConsorcios = N'/var/opt/mssql/pruebas/datos-varios-consorcios.csv';
 go
     
 -- Unidad_Funcional

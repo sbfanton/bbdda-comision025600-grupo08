@@ -984,6 +984,89 @@ GO
 
 -- Tabla Prorrateo
 
+-- Funcaion para calcular deuda acumulada
+CREATE OR ALTER FUNCTION gestion.fn_calcular_deuda_acumulada
+(
+    @id_unidad_funcional INT,
+    @id_consorcio INT,
+    @anio SMALLINT,
+    @mes TINYINT
+)
+RETURNS DECIMAL(12,2)
+AS
+BEGIN
+    DECLARE @deuda DECIMAL(15,2) = 0
+    DECLARE @mes_anterior TINYINT
+    DECLARE @anio_anterior SMALLINT
+
+    -- Calcula mes y año anterior
+    IF @mes = 1
+    BEGIN
+        SET @mes_anterior = 12
+        SET @anio_anterior = @anio - 1
+    END
+    ELSE
+    BEGIN
+        SET @mes_anterior = @mes - 1
+        SET @anio_anterior = @anio
+    END;
+
+    DECLARE @id_expensa_anterior INT
+
+    SELECT @id_expensa_anterior = e.id
+    FROM gestion.Expensa e
+    WHERE e.id_consorcio = @id_consorcio
+      AND e.mes = @mes_anterior
+      AND e.anio = @anio_anterior
+
+    DECLARE @deuda_anterior DECIMAL(15,2) = 0
+    DECLARE @monto_ordinarias_anterior DECIMAL(15,2) = 0
+    DECLARE @monto_extraordinarias_anterior DECIMAL(15,2) = 0
+    DECLARE @interes_mora_mes_anterior DECIMAL(15,2) = 0
+    DECLARE @pagos_actuales DECIMAL(15,2) = 0
+
+    -- deuda = (deuda_mes_anterior + expensa_mes_anterior + interes_mora_mes_anterior) - pagos_actuales
+
+    -- deuda y montos del prorrateo anterior
+    SELECT 
+    @deuda_anterior = isnull(pr.deuda, 0),
+    @monto_ordinarias_anterior = isnull(pr.monto_ordinarias, 0),
+    @monto_extraordinarias_anterior = isnull(pr.monto_extraordinarias, 0),
+    @interes_mora_mes_anterior = isnull(pr.interes_mora, 0)
+    FROM gestion.Prorrateo pr
+    WHERE pr.id_expensa = @id_expensa_anterior
+    AND pr.id_unidad_funcional = @id_unidad_funcional;
+
+    -- pagos del mes actual
+    SELECT @pagos_actuales = isnull(sum(p.importe), 0)
+    FROM gestion.Pago p
+    WHERE p.id_unidad_funcional = @id_unidad_funcional
+      AND p.id_consorcio_unidad_funcional = @id_consorcio
+      AND year(p.fecha) = @anio
+      AND month(p.fecha) = @mes;
+
+    IF @deuda_anterior = 0 
+    and @monto_ordinarias_anterior = 0 
+    and @monto_extraordinarias_anterior = 0 
+    and @interes_mora_mes_anterior = 0
+        BEGIN
+            SET @deuda = 0
+        END
+    ELSE   
+        BEGIN
+            SET @deuda = @deuda_anterior + 
+                         @monto_ordinarias_anterior + 
+                         @monto_extraordinarias_anterior + 
+                         @interes_mora_mes_anterior - 
+                         @pagos_actuales;
+        END
+
+    RETURN @deuda;
+END;
+GO
+
+
+
 create or alter procedure gestion.sp_generar_prorrateo
 	@id_consorcio int,
     @mes TINYINT,
@@ -1021,18 +1104,14 @@ BEGIN
             isnull(sum(p.importe), 0) as saldo_abonado,
             cast((e.monto_total_ordinarias * uf.porcentaje / 100.0) as decimal(15,2)) as monto_ordinarias,
             cast((e.monto_total_extraordinarias * uf.porcentaje / 100.0) as decimal(15,2)) as monto_extraordinarias,
-             cast(
-                (e.monto_total_ordinarias * uf.porcentaje / 100.0) +
-                (e.monto_total_extraordinarias * uf.porcentaje / 100.0) -
-                isnull(sum(p.importe), 0)
-            as decimal(12,2)) as deuda
+            gestion.fn_calcular_deuda_acumulada(uf.id, uf.id_consorcio, @anio, @mes) as deuda
             from gestion.Expensa e 
             inner join gestion.Unidad_Funcional uf on uf.id_consorcio = e.id_consorcio
             left join gestion.Pago p 
                 on p.id_unidad_funcional = uf.id 
                and p.id_consorcio_unidad_funcional = uf.id_consorcio
                and year(p.fecha) = @anio
-               and month(p.fecha) = @mes -- REVISAR!!
+               and month(p.fecha) = @mes
             where e.id = @id_expensa 
             and uf.id_consorcio = @id_consorcio 
             group by uf.id, uf.id_consorcio, uf.porcentaje, 
