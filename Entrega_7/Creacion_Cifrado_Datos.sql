@@ -61,15 +61,55 @@ GO
 UPDATE gestion.Pago
 SET cbu_cvu_origen_Sal = CONVERT(varbinary, cbu_cvu_origen);
 GO
+
+--------------------para PERSONA------------
+ALTER TABLE gestion.Persona
+ADD nro_doc_Cifrado VARBINARY(MAX) NULL,
+    nombre_Cifrado VARBINARY(MAX) NULL,
+    apellido_Cifrado VARBINARY(MAX) NULL,
+    email_Cifrado VARBINARY(MAX) NULL,
+    telefono_Cifrado VARBINARY(MAX) NULL;
+GO
+
+------------------------------------------------------------
+-- 4) Agregar HASH y SAL a la tabla Persona
+------------------------------------------------------------
+ALTER TABLE gestion.Persona
+ADD nro_doc_Hash VARBINARY(32),
+    nombre_Hash VARBINARY(32),
+    apellido_Hash VARBINARY(32),
+    email_Hash VARBINARY(32),
+    telefono_Hash VARBINARY(32),
+    nro_doc_Sal VARBINARY(MAX),
+    nombre_Sal VARBINARY(MAX),
+    apellido_Sal VARBINARY(MAX),
+    email_Sal VARBINARY(MAX),
+    telefono_Sal VARBINARY(MAX);
+GO
+
+UPDATE gestion.Persona
+SET nro_doc_Hash = HASHBYTES('SHA2_256', CONVERT(NVARCHAR(50), nro_doc)),
+    nombre_Hash = HASHBYTES('SHA2_256', nombre),
+    apellido_Hash = HASHBYTES('SHA2_256', apellido),
+    email_Hash = HASHBYTES('SHA2_256', CONVERT(NVARCHAR(200), email)),
+    telefono_Hash = HASHBYTES('SHA2_256', telefono),
+    nro_doc_Sal = CONVERT(varbinary, nro_doc),
+    nombre_Sal = CONVERT(varbinary, nombre),
+    apellido_Sal = CONVERT(varbinary, apellido),
+    email_Sal = CONVERT(varbinary, email),
+    telefono_Sal = CONVERT(varbinary, telefono);
+GO
+
 ------------------------------------------------------------
 -- Verificacion
 ------------------------------------------------------------
-SELECT TOP 10 *
-FROM gestion.Pago;
+SELECT TOP 10 *FROM gestion.Pago;
+SELECT TOP 10 *FROM gestion.Persona;
 
 --veo que los hash coinciden, me habilita a seguir
 select top 10* from gestion.Pago p join gestion.Cuenta_Bancaria_Asociada_UF cuf
 on p.cbu_cvu_origen_Hash = cuf.cbu_cvu_Hash
+GO
 
 
 --cifro el cuenta_bancaria_asociada_uf
@@ -110,11 +150,37 @@ BEGIN
 END
 GO
 
+-- ENCRIPTAR PERSONA ----------------------------------------------------
+CREATE OR ALTER PROCEDURE gestion.sp_encriptar_persona
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @FraseClave NVARCHAR(128) = N'QuieroMiPanDanes';
+
+    UPDATE gestion.Persona
+    SET 
+        -- nro_doc lo tratamos como texto para encriptarlo de forma segura
+        nro_doc_Cifrado   = EncryptByPassPhrase(@FraseClave, CAST(nro_doc AS NVARCHAR(50))),
+        nombre_Cifrado    = EncryptByPassPhrase(@FraseClave, nombre),
+        apellido_Cifrado  = EncryptByPassPhrase(@FraseClave, apellido),
+        email_Cifrado     = EncryptByPassPhrase(@FraseClave, email),
+        telefono_Cifrado  = EncryptByPassPhrase(@FraseClave, telefono)
+    WHERE nro_doc_Cifrado IS NULL;
+END
+GO
+
+-- Limpiar cifrados para generarlos de nuevo
+UPDATE gestion.Persona
+SET nro_doc_Cifrado = NULL, nombre_Cifrado = NULL, apellido_Cifrado = NULL, email_Cifrado = NULL, telefono_Cifrado = NULL;
+
 EXEC gestion.sp_encriptar_cuentas_bancarias
 EXEC gestion.sp_encriptar_cbu_pago
+EXEC gestion.sp_encriptar_persona
 --vemos el campo cifrado
 select top 10* from gestion.Cuenta_Bancaria_Asociada_UF
 select top 10* from gestion.Pago
+select top 10* from gestion.Persona
+GO
 --deciframos
 
 --desencriptacion ESTA SIRVE
@@ -144,7 +210,7 @@ BEGIN
 END
 GO
 
---
+-- Pago
 CREATE OR ALTER PROCEDURE gestion.sp_desencriptar_datos_cbu_pago
     @FraseClaveCargadaPorUsuario NVARCHAR(128)
 AS
@@ -172,6 +238,30 @@ BEGIN
 END
 GO
 
+-- Desencriptar Persona -----------------------------------------------------------
+CREATE OR ALTER PROCEDURE gestion.sp_desencriptar_datos_persona
+    @FraseClaveCargadaPorUsuario NVARCHAR(128)
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @FraseClaveCargadaPorUsuario <> N'QuieroMiPanDanes'
+    BEGIN
+        THROW 50000, 'Frase clave incorrecta. No se realizó la operación de descifrado.', 1;
+    END;
+
+    SELECT 
+        id AS id_persona,
+        id_tipo_documento,
+        -- Se usa NVARCHAR porque el cifrado se hizo con NVARCHAR
+        CONVERT(NVARCHAR(50), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, nro_doc_Cifrado)) AS nro_doc_desencriptado,
+        CONVERT(VARCHAR(200), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, nombre_Cifrado)) AS nombre_desencriptado,
+        CONVERT(VARCHAR(200), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, apellido_Cifrado)) AS apellido_desencriptado,
+        CONVERT(VARCHAR(200), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, email_Cifrado)) AS email_desencriptado,
+        CONVERT(VARCHAR(100), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, telefono_Cifrado)) AS telefono_desencriptado
+    FROM gestion.Persona;
+END
+GO
 
 EXEC gestion.sp_desencriptar_datos_cbu_cvu
 @FraseClaveCargadaPorUsuario = N'QuieroMiPanDanes';
@@ -179,6 +269,8 @@ EXEC gestion.sp_desencriptar_datos_cbu_cvu
 EXEC gestion.sp_desencriptar_datos_cbu_pago
 @FraseClaveCargadaPorUsuario = N'QuieroMiPanDanes';
 
+EXEC gestion.sp_desencriptar_datos_persona
+@FraseClaveCargadaPorUsuario = N'QuieroMiPanDanes';
 
 -- LO QUE SIGUE:
 --MODIFICACIONES DE SP QUE USAN CBU_CVU Y CBU_CVU_ORIGEN--
@@ -637,6 +729,16 @@ GO
 --borro el campo
 ALTER TABLE gestion.Pago
 DROP COLUMN cbu_cvu_origen;
+GO
+
+---borrar columnas originales de Persona
+--primero borro constraints asociadas al campo
+ALTER TABLE gestion.Persona
+DROP CONSTRAINT persona_tipo_documento_fk, persona_nro_doc_ck, persona_email_ck, persona_telefono_ck, persona_ck_contacto;
+GO
+-- borro los campos
+ALTER TABLE gestion.Persona
+DROP COLUMN nro_doc, nombre, apellido, email, telefono;
 GO
 
 ------------------------------------------------------------------
