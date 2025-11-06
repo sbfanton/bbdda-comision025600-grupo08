@@ -85,7 +85,7 @@ Estas carpetas incluyen:
 ## 👨‍🎓 Integrantes del grupo
 
 - Cazal, Leila Abigail / *leilacazal*
-- Fanton, Sol Belén / *sbfanton*
+- Fanton, Sol Belén / *sbfanton*, *Sol Fanton*
 - Oliveto, Pablo Agustín (antiguo miembro)
 - Castro, Ezequiel Alejandro / *EzequielC-git*
 - Grance Zenteno, Lucas Rodrigo / *zetta-2*
