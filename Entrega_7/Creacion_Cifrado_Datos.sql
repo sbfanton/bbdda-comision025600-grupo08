@@ -777,6 +777,53 @@ GO
 EXEC gestion.sp_reporte_top_morosos @FraseClaveCargadaPorUsuario = N'QuieroMiPanDanes';
 
 
+-- Creacion Modelo Expensa
+CREATE OR ALTER PROCEDURE gestion.sp_modelo_expensa
+    @FraseClaveCargadaPorUsuario NVARCHAR(128),
+    @id_consorcio INT,
+    @mes TINYINT,
+    @anio SMALLINT
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    EXEC gestion.sp_generar_expensa @id_consorcio, @mes, @anio
+
+    EXEC gestion.sp_generar_prorrateo @id_consorcio, @mes, @anio
+
+    SELECT 
+        uf.id as Uf,
+        uf.porcentaje AS '%',
+        uf.piso + ' ' + uf.depto as 'Piso-Depto',
+        CONVERT(VARCHAR(200), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, p.nombre_Cifrado)) + ', ' +
+            CONVERT(VARCHAR(200), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, p.apellido_Cifrado)) AS 'Propietario',
+        pr.monto_ordinarias AS 'Expensas Ordinarias',
+        pr.monto_extraordinarias AS 'Expensas Extraordinarias',
+        pr.deuda AS 'Deuda',
+        pr.interes_mora AS 'Interés por mora',
+        pr.saldo_abonado AS 'Saldo Abonado',
+        (pr.monto_ordinarias + pr.monto_extraordinarias + pr.interes_mora) AS 'Total a Pagar'
+    FROM gestion.Prorrateo pr
+    INNER JOIN gestion.Unidad_Funcional uf 
+        ON pr.id_unidad_funcional = uf.id 
+        AND pr.id_consorcio_unidad_funcional = uf.id_consorcio
+    LEFT JOIN gestion.Unidad_Funcional_Persona ufp 
+        ON ufp.id_unidad_funcional = uf.id 
+        AND ufp.id_consorcio_unidad_funcional = uf.id_consorcio
+    LEFT JOIN gestion.Persona p 
+        ON ufp.id_persona = p.id
+    WHERE pr.id_expensa IN (
+        SELECT id FROM gestion.Expensa 
+        WHERE id_consorcio = @id_consorcio AND mes = @mes AND anio = @anio
+    )
+END
+
+EXEC gestion.sp_modelo_expensa @FraseClaveCargadaPorUsuario = N'QuieroMiPanDanes',
+    @id_consorcio = 1,
+    @mes = 5,
+    @anio = 2025;
+
+
 --ULTIMO PASO
 ---borrar columna original de  Cuenta_Bancaria_Asociada_UF
 --primero borro constraints asociadas al campo
