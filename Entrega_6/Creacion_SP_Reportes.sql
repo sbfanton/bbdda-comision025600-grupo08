@@ -221,7 +221,6 @@ DNI de los propietarios para que la administracion los pueda contactar o remitir
 estudio juridico.
 */
 CREATE OR ALTER PROCEDURE gestion.sp_reporte_top_morosos
-    @FraseClaveCargadaPorUsuario NVARCHAR(128),
     @IdConsorcio INT = NULL,
     @TopCantidad INT = 3,
     @DeudaMinima DECIMAL(18,2) = 0,
@@ -244,7 +243,7 @@ BEGIN
     EXEC sp_OAGetProperty @Object, 'RESPONSETEXT' -- Extraer la respuesta a una variable 
 
     SELECT @respuesta = respuesta FROM @json 
-    DECLARE @usd_to_ars FLOAT = JSON_VALUE(@respuesta, '$.rates.ARS') 
+    DECLARE @usd_to_ars FLOAT = JSON_VALUE(@respuesta, '$.rates.ARS') -- Obtener cotización
 
     ;WITH Morosidad AS (
         SELECT 
@@ -256,16 +255,17 @@ BEGIN
             per.apellido_Cifrado,
             per.telefono_Cifrado
         FROM gestion.Persona per
-        JOIN gestion.Unidad_Funcional_Persona ufp ON per.id = ufp.id_persona
-        JOIN gestion.Unidad_Funcional uf ON uf.id = ufp.id_unidad_funcional
+        JOIN gestion.Unidad_Funcional_Persona ufp 
+            ON per.id = ufp.id_persona
+        JOIN gestion.Unidad_Funcional uf 
+            ON uf.id = ufp.id_unidad_funcional
             AND uf.id_consorcio = ufp.id_consorcio_unidad_funcional
         LEFT JOIN gestion.Prorrateo pro ON pro.id_unidad_funcional = uf.id
     )
     SELECT TOP (@TopCantidad)
-        CONVERT(NVARCHAR(50), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, m.nro_doc_Cifrado)) AS nro_doc,
-        CONVERT(VARCHAR(200), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, m.nombre_Cifrado)) + ', ' +
-            CONVERT(VARCHAR(200), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, m.apellido_Cifrado)) AS nombre_y_apellido,
-        CONVERT(VARCHAR(100), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, m.telefono_Cifrado)) AS telefono,
+        m.nro_doc AS documento,
+        m.nombre + ', ' + m.apellido AS nombre_completo,
+        m.telefono,
         m.deuda,
         CAST(ROUND(m.deuda / @usd_to_ars, 2) AS DECIMAL(10,2)) AS deuda_usd
     FROM Morosidad m
@@ -277,7 +277,7 @@ BEGIN
 END;
 GO
 
-EXEC gestion.sp_reporte_top_morosos @FraseClaveCargadaPorUsuario = N'QuieroMiPanDanes';
+EXEC gestion.sp_reporte_top_morosos;
 
 
 /* Reporte 6
