@@ -236,12 +236,12 @@ BEGIN
     SELECT 
         id AS id_persona,
         id_tipo_documento,
-        -- Se usa NVARCHAR porque el cifrado se hizo con NVARCHAR
-        CONVERT(NVARCHAR(50), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, nro_doc_Cifrado)) AS nro_doc_desencriptado,
-        CONVERT(VARCHAR(200), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, nombre_Cifrado)) AS nombre_desencriptado,
-        CONVERT(VARCHAR(200), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, apellido_Cifrado)) AS apellido_desencriptado,
-        CONVERT(VARCHAR(200), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, email_Cifrado)) AS email_desencriptado,
-        CONVERT(VARCHAR(100), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, telefono_Cifrado)) AS telefono_desencriptado
+        -- Se usa NVARCHAR porque el cifrado se hizo con NVARCHAR           ----descomentar solo modifiquemos el sp de importar
+        CONVERT(NVARCHAR(50), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, nro_doc_Cifrado/*, 1, nro_doc_Sal*/)) AS nro_doc_desencriptado, 
+        CONVERT(VARCHAR(200), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, nombre_Cifrado/*,1, nombre_Sal*/)) AS nombre_desencriptado,
+        CONVERT(VARCHAR(200), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, apellido_Cifrado/*,1, apellido_Sal*/)) AS apellido_desencriptado,
+        CONVERT(VARCHAR(200), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, email_Cifrado/*,1, email_Sal*/)) AS email_desencriptado,
+        CONVERT(VARCHAR(100), DecryptByPassPhrase(@FraseClaveCargadaPorUsuario, telefono_Cifrado/*,1, telefono_Sal*/)) AS telefono_desencriptado
     FROM gestion.Persona;
 END
 GO
