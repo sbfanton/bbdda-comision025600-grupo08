@@ -34,15 +34,8 @@ go
 UPDATE gestion.Cuenta_Bancaria_Asociada_UF
 SET cbu_cvu_Hash = HASHBYTES('SHA2_256', cbu_cvu);
 go
-------------------------------------------------------------
--- Verificacion
-------------------------------------------------------------
-SELECT TOP 10 *
-FROM gestion.Cuenta_Bancaria_Asociada_UF;
-go
 
-
---------------------para el PAGO------------
+-------------para el PAGO------------
 ALTER TABLE gestion.Pago
 ADD cbu_cvu_origen_Cifrado VARBINARY(MAX) NULL;
 GO
@@ -100,19 +93,8 @@ SET nro_doc_Hash = HASHBYTES('SHA2_256', CONVERT(NVARCHAR(50), nro_doc)),
     telefono_Sal = CONVERT(varbinary, telefono);
 GO
 
-------------------------------------------------------------
--- Verificacion
-------------------------------------------------------------
-SELECT TOP 10 *FROM gestion.Pago;
-SELECT TOP 10 *FROM gestion.Persona;
 
---veo que los hash coinciden, me habilita a seguir
-select top 10* from gestion.Pago p join gestion.Cuenta_Bancaria_Asociada_UF cuf
-on p.cbu_cvu_origen_Hash = cuf.cbu_cvu_Hash
-GO
-
-
---cifro el cuenta_bancaria_asociada_uf
+--SPs para cifrar
 CREATE OR ALTER PROCEDURE gestion.sp_encriptar_cuentas_bancarias
 AS
 BEGIN
@@ -131,7 +113,6 @@ BEGIN
 END
 GO
 
---cifro el pago
 CREATE OR ALTER PROCEDURE gestion.sp_encriptar_cbu_pago
 AS
 BEGIN
@@ -150,7 +131,6 @@ BEGIN
 END
 GO
 
--- ENCRIPTAR PERSONA ----------------------------------------------------
 CREATE OR ALTER PROCEDURE gestion.sp_encriptar_persona
 AS
 BEGIN
@@ -176,14 +156,17 @@ SET nro_doc_Cifrado = NULL, nombre_Cifrado = NULL, apellido_Cifrado = NULL, emai
 EXEC gestion.sp_encriptar_cuentas_bancarias
 EXEC gestion.sp_encriptar_cbu_pago
 EXEC gestion.sp_encriptar_persona
+	
 --vemos el campo cifrado
 select top 10* from gestion.Cuenta_Bancaria_Asociada_UF
 select top 10* from gestion.Pago
 select top 10* from gestion.Persona
 GO
+	
 --deciframos
 
---desencriptacion ESTA SIRVE
+--SPs para descifrar
+--cuenta_bancaria
 CREATE OR ALTER PROCEDURE gestion.sp_desencriptar_datos_cbu_cvu
     @FraseClaveCargadaPorUsuario NVARCHAR(128)
 AS
@@ -238,7 +221,7 @@ BEGIN
 END
 GO
 
--- Desencriptar Persona -----------------------------------------------------------
+--Persona
 CREATE OR ALTER PROCEDURE gestion.sp_desencriptar_datos_persona
     @FraseClaveCargadaPorUsuario NVARCHAR(128)
 AS
@@ -263,6 +246,39 @@ BEGIN
 END
 GO
 
+
+--ULTIMO PASO
+---borrar columna original de  Cuenta_Bancaria_Asociada_UF
+--primero borro constraints asociadas al campo
+ALTER TABLE gestion.Cuenta_Bancaria_Asociada_UF
+DROP CONSTRAINT cuenta_bancaria_asociada_UF_cbu_cvu_ck;
+GO
+--borro el campo
+ALTER TABLE gestion.Cuenta_Bancaria_Asociada_UF
+DROP COLUMN cbu_cvu;
+GO
+
+---borrar columna original de  Pago
+--primero borro constraints asociadas al campo
+ALTER TABLE gestion.Pago
+DROP CONSTRAINT pago_cbu_cvu_origen_ck
+GO
+--borro el campo
+ALTER TABLE gestion.Pago
+DROP COLUMN cbu_cvu_origen;
+GO
+
+---borrar columnas originales de Persona
+--primero borro constraints asociadas al campo
+ALTER TABLE gestion.Persona
+DROP CONSTRAINT persona_tipo_documento_fk, persona_nro_doc_ck, persona_email_ck, persona_telefono_ck, persona_ck_contacto;
+GO
+-- borro los campos
+ALTER TABLE gestion.Persona
+DROP COLUMN nro_doc, nombre, apellido, email, telefono;
+GO	
+
+	--PRUEBA
 EXEC gestion.sp_desencriptar_datos_cbu_cvu
 @FraseClaveCargadaPorUsuario = N'QuieroMiPanDanes';
 
@@ -274,12 +290,12 @@ EXEC gestion.sp_desencriptar_datos_persona
 GO
 
 -- LO QUE SIGUE:
---MODIFICACIONES DE SP QUE USAN CBU_CVU Y CBU_CVU_ORIGEN--
+--MODIFICACIONES DE SP QUE USAN CBU_CVU Y CBU_CVU_ORIGEN Y DATOS DE PERSONAS--
+
 
 ------------de importacion--------------------
 ---------------------------------------------------------
--- SP IMPORTAR PERSONAS (con CBU CIFRADO CORRECTO)
----------------------------------------------------------
+-- SP IMPORTAR PERSONAS
 CREATE OR ALTER PROCEDURE gestion.sp_importar_personas
     @pathPersonasDatos NVARCHAR(4000),
     @pathPersonasUF NVARCHAR(4000),
@@ -430,11 +446,8 @@ BEGIN
 END
 GO
 
-
-
 ---------------------------------------------------------
--- SP IMPORTAR PAGOS (con CBU CIFRADO CORRECTO)
----------------------------------------------------------
+-- SP IMPORTAR PAGOS 
 CREATE OR ALTER PROCEDURE gestion.sp_importar_pagos
     @path NVARCHAR(4000),
     @rowTerminator NVARCHAR(10) = '\n',
@@ -516,6 +529,182 @@ BEGIN
     END CATCH
 END
 GO
+
+CREATE OR ALTER PROCEDURE gestion.sp_importar_personas --PROBADO
+    @pathPersonasDatos NVARCHAR(4000),
+    @pathPersonasUF NVARCHAR(4000),
+    @rowTerminatorPersonas NVARCHAR(10) = '\n',
+    @rowTerminatorPersonasUF NVARCHAR(10) = '\n',
+    @fieldTerminatorPersonas NVARCHAR(10) = ';',
+    @fieldTerminatorPersonasUF NVARCHAR(10) = '|'
+AS
+BEGIN
+    SET NOCOUNT ON;
+    DECLARE @FraseClave NVARCHAR(128) = N'QuieroMiPanDanes';
+
+    BEGIN TRY
+        SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+        BEGIN TRANSACTION;
+
+        IF OBJECT_ID('tempdb..#tmp_personas') IS NOT NULL DROP TABLE #tmp_personas;
+        IF OBJECT_ID('tempdb..#tmp_personas_UF') IS NOT NULL DROP TABLE #tmp_personas_UF;
+
+        CREATE TABLE #tmp_personas (
+            nombre NVARCHAR(100),
+            apellido NVARCHAR(100),
+            dni NVARCHAR(20),
+            email_personal NVARCHAR(150),
+            telefono_contacto NVARCHAR(30),
+            cvu_cbu NVARCHAR(30),
+            inquilino NVARCHAR(10)
+        );
+
+        DECLARE @sql NVARCHAR(MAX) =
+        N'BULK INSERT #tmp_personas FROM ''' + @pathPersonasDatos + ''' WITH (
+            FIRSTROW = 2, FIELDTERMINATOR = ''' + @fieldTerminatorPersonas + ''', ROWTERMINATOR = ''' + @rowTerminatorPersonas + ''')';
+        EXEC sp_executesql @sql;
+
+        CREATE TABLE #tmp_personas_UF (
+            cvu_cbu NVARCHAR(30),
+            consorcio NVARCHAR(20),
+            uf NVARCHAR(5),
+            piso NVARCHAR(5),
+            depto NVARCHAR(5)
+        );
+
+        DECLARE @sql2 NVARCHAR(MAX) =
+        N'BULK INSERT #tmp_personas_UF FROM ''' + @pathPersonasUF + ''' WITH (
+            FIRSTROW = 2, FIELDTERMINATOR = ''' + @fieldTerminatorPersonasUF + ''', ROWTERMINATOR = ''' + @rowTerminatorPersonasUF + ''')';
+        EXEC sp_executesql @sql2;
+
+        SELECT 
+            p.nombre, p.apellido, p.dni, p.email_personal, p.telefono_contacto,
+            LTRIM(RTRIM(p.cvu_cbu)) AS cvu_cbu,
+            CASE 
+                WHEN LTRIM(RTRIM(p.inquilino)) = '1' THEN 1
+                WHEN LTRIM(RTRIM(p.inquilino)) = '0' THEN 0
+                ELSE NULL 
+            END AS inquilino,
+            c.id AS id_consorcio,
+            r.uf, r.piso, r.depto
+        INTO #PersonasUF
+        FROM #tmp_personas p
+        INNER JOIN #tmp_personas_UF r ON LTRIM(RTRIM(p.cvu_cbu)) = LTRIM(RTRIM(r.cvu_cbu))
+        INNER JOIN gestion.Consorcio c ON c.nombre = r.consorcio;
+
+        SELECT 
+            p.*,
+            ROW_NUMBER() OVER (PARTITION BY p.dni ORDER BY p.apellido) AS dni_rn,
+            ROW_NUMBER() OVER (PARTITION BY p.cvu_cbu, p.id_consorcio, p.uf ORDER BY p.id_consorcio) AS cbu_uf_rn
+        INTO #PersonasUFConRN 
+        FROM #PersonasUF p;
+
+       -- INSERTA PERSONA CIFRADA
+		INSERT INTO gestion.Persona (
+			id_tipo_documento,
+			nro_doc_Cifrado, nro_doc_Sal, nro_doc_Hash,
+			nombre_Cifrado,  nombre_Sal,
+			apellido_Cifrado, apellido_Sal,
+			email_Cifrado,   email_Sal,
+			telefono_Cifrado, telefono_Sal
+		)
+		SELECT
+			'DNI',
+			EncryptByPassPhrase(@FraseClave, CAST(CAST(p.dni AS INT) AS NVARCHAR(50)), 1, CONVERT(varbinary, CAST(p.dni AS INT))),
+			CONVERT(varbinary, CAST(p.dni AS INT)),
+			HASHBYTES('SHA2_256', CAST(CAST(p.dni AS INT) AS NVARCHAR(50))),
+
+			EncryptByPassPhrase(@FraseClave, CONVERT(VARCHAR(100), LTRIM(RTRIM(p.nombre))), 1, CONVERT(varbinary(200), CONVERT(VARCHAR(100), LTRIM(RTRIM(p.nombre))))),
+			CONVERT(varbinary(200), CONVERT(VARCHAR(100), LTRIM(RTRIM(p.nombre)))),
+
+			EncryptByPassPhrase(@FraseClave, CONVERT(VARCHAR(100), LTRIM(RTRIM(p.apellido))), 1, CONVERT(varbinary(200), CONVERT(VARCHAR(100), LTRIM(RTRIM(p.apellido))))),
+			CONVERT(varbinary(200), CONVERT(VARCHAR(100), LTRIM(RTRIM(p.apellido)))),
+
+			CASE WHEN p.email_personal IS NULL OR LTRIM(RTRIM(p.email_personal)) = '' THEN NULL
+				 ELSE EncryptByPassPhrase(@FraseClave, CONVERT(VARCHAR(150), LTRIM(RTRIM(p.email_personal))), 1, CONVERT(varbinary(200), CONVERT(VARCHAR(150), LTRIM(RTRIM(p.email_personal))))) END,
+			CASE WHEN p.email_personal IS NULL OR LTRIM(RTRIM(p.email_personal)) = '' THEN NULL
+				 ELSE CONVERT(varbinary(200), CONVERT(VARCHAR(150), LTRIM(RTRIM(p.email_personal)))) END,
+
+			CASE WHEN p.telefono_contacto IS NULL OR LTRIM(RTRIM(p.telefono_contacto)) = '' THEN NULL
+				 ELSE EncryptByPassPhrase(@FraseClave, CONVERT(VARCHAR(30), LTRIM(RTRIM(p.telefono_contacto))), 1, CONVERT(varbinary(200), CONVERT(VARCHAR(30), LTRIM(RTRIM(p.telefono_contacto))))) END,
+			CASE WHEN p.telefono_contacto IS NULL OR LTRIM(RTRIM(p.telefono_contacto)) = '' THEN NULL
+				 ELSE CONVERT(varbinary(200), CONVERT(VARCHAR(30), LTRIM(RTRIM(p.telefono_contacto)))) END
+		FROM #PersonasUFConRN p
+		WHERE p.dni IS NOT NULL
+		  AND ISNUMERIC(p.dni) = 1
+		  AND NOT EXISTS (
+				SELECT 1 FROM gestion.Persona per
+				WHERE per.id_tipo_documento = 'DNI'
+				  AND per.nro_doc_Hash = HASHBYTES('SHA2_256', CAST(CAST(p.dni AS INT) AS NVARCHAR(50)))
+		);
+
+        ---- UF-PERSONA-> usa el hash del DNI ----
+        INSERT INTO gestion.Unidad_Funcional_Persona (
+            id_unidad_funcional,
+            id_consorcio_unidad_funcional,
+            id_persona,
+            fecha_desde,
+            fecha_hasta,
+            es_inquilino
+        )
+        SELECT
+            CAST(p.uf AS INT),
+            CAST(p.id_consorcio AS INT),
+            gp.id,
+            NULL,
+            NULL,
+            CAST(p.inquilino AS BIT)
+        FROM #PersonasUFConRN p
+        INNER JOIN gestion.Persona gp
+            ON gp.id_tipo_documento = 'DNI'
+           AND gp.nro_doc_Hash = HASHBYTES('SHA2_256', CAST(CAST(p.dni AS INT) AS NVARCHAR(50)))
+        WHERE 
+            p.dni IS NOT NULL
+            AND p.dni <> ''
+            AND ISNUMERIC(p.dni) = 1
+            AND NOT EXISTS (
+                SELECT 1
+                FROM gestion.Unidad_Funcional_Persona uf
+                WHERE uf.id_persona = gp.id 
+                  AND uf.id_unidad_funcional = CAST(p.uf AS INT)
+                  AND uf.id_consorcio_unidad_funcional = CAST(p.id_consorcio AS INT)
+        );
+
+        INSERT INTO gestion.Cuenta_Bancaria_Asociada_UF (
+            id_unidad_funcional,
+            id_consorcio_unidad_funcional,
+            cbu_cvu_Cifrado,
+            cbu_cvu_Sal,
+            cbu_cvu_Hash
+        )
+        SELECT
+            CAST(uf.uf AS INT),
+            CAST(uf.id_consorcio AS INT),
+            EncryptByPassPhrase(@FraseClave, CAST(uf.cvu_cbu AS VARCHAR(22)), 1, CONVERT(varbinary(50), CAST(uf.cvu_cbu AS VARCHAR(22)))),
+            CONVERT(varbinary(50), CAST(uf.cvu_cbu AS VARCHAR(22))),
+            HASHBYTES('SHA2_256', CAST(uf.cvu_cbu AS VARCHAR(22)))
+        FROM #PersonasUF uf
+        WHERE NOT EXISTS (
+            SELECT 1 FROM gestion.Cuenta_Bancaria_Asociada_UF x
+            WHERE x.id_unidad_funcional = CAST(uf.uf AS INT)
+              AND x.id_consorcio_unidad_funcional = CAST(uf.id_consorcio AS INT)
+              AND x.cbu_cvu_Hash = HASHBYTES('SHA2_256', CAST(uf.cvu_cbu AS VARCHAR(22)))
+        );
+
+        DROP TABLE #PersonasUFConRN;
+        DROP TABLE #PersonasUF;
+        DROP TABLE #tmp_personas;
+        DROP TABLE #tmp_personas_UF;
+
+        COMMIT TRANSACTION;
+    END TRY
+    BEGIN CATCH
+        ROLLBACK TRANSACTION;
+        THROW;
+    END CATCH
+END
+GO
+
 ------------de abm-----------
 CREATE OR ALTER PROCEDURE gestion.sp_alta_Cuenta_Bancaria_Asociada_UF
     @id_unidad_funcional INT,
@@ -636,10 +825,6 @@ BEGIN
 END --PROBADA
 GO
 
---------------------------------------------------------------------------------
--- Pago (id identity)
---------------------------------------------------------------------------------
-
 ---INSERTAR PAGO--
 CREATE OR ALTER PROCEDURE gestion.sp_alta_Pago
     @id_pago BIGINT,
@@ -692,31 +877,6 @@ BEGIN
 END--PROBADA
 GO
 
-
---MUESTRA EL CBU_CVU EN CUENTA_BANCARIA
-SELECT TOP 50
-    cbu_cvu_Cifrado,
-    CONVERT(VARCHAR(50), DecryptByPassPhrase('QuieroMiPanDanes', cbu_cvu_Cifrado, 1, cbu_cvu_Sal)) AS cbu_descifrado,
-    cbu_cvu_Hash
-FROM gestion.Cuenta_Bancaria_Asociada_UF
-where id_unidad_funcional = 1;
-
---MUESTRA EL CBU_CVU_origen EN PAGO
-SELECT TOP 20
-    CONVERT(VARCHAR(50),
-        DecryptByPassPhrase('QuieroMiPanDanes', cbu_cvu_origen_Cifrado, 1, cbu_cvu_origen_Sal)
-    ) AS cbu_descifrado,
-    cbu_cvu_origen_Hash
-FROM gestion.Pago
---WHERE fecha = '2025-11-01'
-GO
-
-
---------------------------------------------------------------------------------
--- Reportes
---------------------------------------------------------------------------------\
-
--- Top Morosos
 CREATE OR ALTER PROCEDURE gestion.sp_reporte_top_morosos
     @FraseClaveCargadaPorUsuario NVARCHAR(128),
     @IdConsorcio INT = NULL,
@@ -774,9 +934,123 @@ BEGIN
 END;
 GO
 
-EXEC gestion.sp_reporte_top_morosos @FraseClaveCargadaPorUsuario = N'QuieroMiPanDanes';
+--subir a git amb persona
+CREATE OR ALTER PROCEDURE gestion.sp_alta_Persona --sin probar
+	@nro_doc INT,
+    @id_tipo_documento VARCHAR(5),
+    @nombre VARCHAR(100),
+    @apellido VARCHAR(100),
+    @email VARCHAR(150) = NULL,
+    @telefono VARCHAR(30) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF @nro_doc IS NULL OR @nro_doc <= 0
+        THROW 50000, 'Nro_doc inválido.', 1;
+    IF NOT EXISTS(SELECT 1 FROM gestion.Tipo_Documento WHERE id = @id_tipo_documento)
+        THROW 50000, 'Tipo de documento no existe.', 1;
+
+    IF @nombre IS NULL OR LTRIM(RTRIM(@nombre)) = ''
+        THROW 50000, 'Nombre obligatorio.', 1;
+    IF @apellido IS NULL OR LTRIM(RTRIM(@apellido)) = ''
+        THROW 50000, 'Apellido obligatorio.', 1;
+
+    IF EXISTS(
+        SELECT 1
+        FROM gestion.Persona
+        WHERE id_tipo_documento = @id_tipo_documento
+          AND nro_doc_Hash = HASHBYTES('SHA2_256', CONVERT(NVARCHAR(50), @nro_doc))
+    )
+        THROW 50000, 'Ya existe una Persona con ese documento.', 1;
+
+    DECLARE @FraseClave NVARCHAR(128) = 'QuieroMiPanDanes';
+
+    INSERT INTO gestion.Persona (
+        id_tipo_documento,
+        nro_doc_Cifrado, nro_doc_Sal, nro_doc_Hash,
+        nombre_Cifrado, nombre_Sal,
+        apellido_Cifrado, apellido_Sal,
+        email_Cifrado, email_Sal,
+        telefono_Cifrado, telefono_Sal
+    )
+    VALUES (
+        @id_tipo_documento,
+        EncryptByPassPhrase(@FraseClave, CONVERT(NVARCHAR(50), @nro_doc), 1, CONVERT(VARBINARY(50), CONVERT(NVARCHAR(50), @nro_doc))),
+        CONVERT(VARBINARY(50), CONVERT(NVARCHAR(50), @nro_doc)),
+        HASHBYTES('SHA2_256', CONVERT(NVARCHAR(50), @nro_doc)),
+
+        EncryptByPassPhrase(@FraseClave, CONVERT(VARCHAR(100), @nombre), 1, CONVERT(VARBINARY(200), CONVERT(VARCHAR(100), @nombre))),
+        CONVERT(VARBINARY(200), CONVERT(VARCHAR(100), @nombre)),
+
+        EncryptByPassPhrase(@FraseClave, CONVERT(VARCHAR(100), @apellido), 1, CONVERT(VARBINARY(200), CONVERT(VARCHAR(100), @apellido))),
+        CONVERT(VARBINARY(200), CONVERT(VARCHAR(100), @apellido)),
+
+        CASE WHEN @email IS NULL THEN NULL
+             ELSE EncryptByPassPhrase(@FraseClave, CONVERT(VARCHAR(150), @email), 1, CONVERT(VARBINARY(200), CONVERT(VARCHAR(150), @email))) END,
+        CASE WHEN @email IS NULL THEN NULL
+             ELSE CONVERT(VARBINARY(200), CONVERT(VARCHAR(150), @email)) END,
+
+        CASE WHEN @telefono IS NULL THEN NULL
+             ELSE EncryptByPassPhrase(@FraseClave, CONVERT(VARCHAR(30), @telefono), 1, CONVERT(VARBINARY(200), CONVERT(VARCHAR(30), @telefono))) END,
+        CASE WHEN @telefono IS NULL THEN NULL
+             ELSE CONVERT(VARBINARY(200), CONVERT(VARCHAR(30), @telefono)) END
+    );
+END
 
 
+CREATE OR ALTER PROCEDURE gestion.sp_modificar_Persona --sin probar
+    @id_persona INT,
+	@nro_doc INT,
+    @id_tipo_documento VARCHAR(5),
+    @nombre VARCHAR(100),
+    @apellido VARCHAR(100),
+    @email VARCHAR(150) = NULL,
+    @telefono VARCHAR(30) = NULL
+AS
+BEGIN
+    SET NOCOUNT ON;
+
+    IF NOT EXISTS(SELECT 1 FROM gestion.Persona WHERE id = @id_persona)
+        THROW 50000, 'Persona no encontrada.', 1;
+
+    IF @nro_doc IS NULL OR @nro_doc <= 0
+        THROW 50000, 'Nro_doc inválido.', 1;
+
+    IF EXISTS(
+        SELECT 1
+        FROM gestion.Persona
+        WHERE id <> @id_persona
+          AND id_tipo_documento = @id_tipo_documento
+          AND nro_doc_Hash = HASHBYTES('SHA2_256', CONVERT(NVARCHAR(50), @nro_doc))
+    )
+        THROW 50000, 'Ya existe otra Persona con ese documento.', 1;
+
+    DECLARE @FraseClave NVARCHAR(128) = 'QuieroMiPanDanes';
+
+	UPDATE gestion.Persona
+	SET
+        id_tipo_documento = @id_tipo_documento,
+
+        nro_doc_Cifrado = EncryptByPassPhrase(@FraseClave, CONVERT(NVARCHAR(50), @nro_doc), 1, CONVERT(VARBINARY(50), CONVERT(NVARCHAR(50), @nro_doc))),
+        nro_doc_Sal     = CONVERT(VARBINARY(50), CONVERT(NVARCHAR(50), @nro_doc)),
+        nro_doc_Hash    = HASHBYTES('SHA2_256', CONVERT(NVARCHAR(50), @nro_doc)),
+
+        nombre_Cifrado  = EncryptByPassPhrase(@FraseClave, CONVERT(VARCHAR(100), @nombre), 1, CONVERT(VARBINARY(200), CONVERT(VARCHAR(100), @nombre))),
+        nombre_Sal      = CONVERT(VARBINARY(200), CONVERT(VARCHAR(100), @nombre)),
+
+        apellido_Cifrado = EncryptByPassPhrase(@FraseClave, CONVERT(VARCHAR(100), @apellido), 1, CONVERT(VARBINARY(200), CONVERT(VARCHAR(100), @apellido))),
+        apellido_Sal     = CONVERT(VARBINARY(200), CONVERT(VARCHAR(100), @apellido)),
+
+        email_Cifrado    = CASE WHEN @email IS NULL THEN NULL ELSE EncryptByPassPhrase(@FraseClave, CONVERT(VARCHAR(150), @email), 1, CONVERT(VARBINARY(200), CONVERT(VARCHAR(150), @email))) END,
+        email_Sal        = CASE WHEN @email IS NULL THEN NULL ELSE CONVERT(VARBINARY(200), CONVERT(VARCHAR(150), @email)) END,
+
+        telefono_Cifrado = CASE WHEN @telefono IS NULL THEN NULL ELSE EncryptByPassPhrase(@FraseClave, CONVERT(VARCHAR(30), @telefono), 1, CONVERT(VARBINARY(200), CONVERT(VARCHAR(30), @telefono))) END,
+        telefono_Sal     = CASE WHEN @telefono IS NULL THEN NULL ELSE CONVERT(VARBINARY(200), CONVERT(VARCHAR(30), @telefono)) END
+	WHERE id = @id_persona;
+END
+GO
+	
 -- Creacion Modelo Expensa
 CREATE OR ALTER PROCEDURE gestion.sp_modelo_expensa
     @FraseClaveCargadaPorUsuario NVARCHAR(128),
@@ -818,42 +1092,5 @@ BEGIN
     )
 END
 
-EXEC gestion.sp_modelo_expensa @FraseClaveCargadaPorUsuario = N'QuieroMiPanDanes',
-    @id_consorcio = 1,
-    @mes = 5,
-    @anio = 2025;
 
 
---ULTIMO PASO
----borrar columna original de  Cuenta_Bancaria_Asociada_UF
---primero borro constraints asociadas al campo
-ALTER TABLE gestion.Cuenta_Bancaria_Asociada_UF
-DROP CONSTRAINT cuenta_bancaria_asociada_UF_cbu_cvu_ck;
-GO
---borro el campo
-ALTER TABLE gestion.Cuenta_Bancaria_Asociada_UF
-DROP COLUMN cbu_cvu;
-GO
-
----borrar columna original de  Pago
---primero borro constraints asociadas al campo
-ALTER TABLE gestion.Pago
-DROP CONSTRAINT pago_cbu_cvu_origen_ck
-GO
---borro el campo
-ALTER TABLE gestion.Pago
-DROP COLUMN cbu_cvu_origen;
-GO
-
----borrar columnas originales de Persona
---primero borro constraints asociadas al campo
-ALTER TABLE gestion.Persona
-DROP CONSTRAINT persona_tipo_documento_fk, persona_nro_doc_ck, persona_email_ck, persona_telefono_ck, persona_ck_contacto;
-GO
--- borro los campos
-ALTER TABLE gestion.Persona
-DROP COLUMN nro_doc, nombre, apellido, email, telefono;
-GO
-
-------------------------------------------------------------------
---MISMO PROCESO PARA LA TABLA PERSONA
