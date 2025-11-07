@@ -16,51 +16,77 @@ BEGIN
 
     DECLARE @anioActual INT = YEAR(GETDATE());
 
-    ;WITH RecaudacionSemanal AS (
+    --traemos pagos junto con la estructura proporcional del prorrateo
+    ;WITH PagosConProporcion AS (
         SELECT 
-            uf.id_consorcio,
-            DATEPART(YEAR, p.fecha) AS Anio,
-            DATEPART(WEEK, p.fecha) AS Semana,
-            SUM(p.importe) AS TotalPesos
+            p.id_unidad_funcional,
+            p.id_consorcio_unidad_funcional AS id_consorcio,
+            p.fecha,
+            p.importe AS ImportePago,
+            pr.monto_ordinarias,
+            pr.monto_extraordinarias,
+            (pr.monto_ordinarias + pr.monto_extraordinarias) AS TotalExpensaMes
         FROM gestion.Pago p
-        INNER JOIN gestion.Unidad_Funcional uf 
-            ON uf.id = p.id_unidad_funcional 
-           AND uf.id_consorcio = p.id_consorcio_unidad_funcional
-        WHERE p.fecha >= DATEFROMPARTS(@anioActual, @mesInicio, 1)
-          AND p.fecha <  DATEADD(MONTH, 1, DATEFROMPARTS(@anioActual, @mesFin, 1))
-          AND (@idConsorcio IS NULL OR uf.id_consorcio = @idConsorcio)
-        GROUP BY uf.id_consorcio, DATEPART(YEAR, p.fecha), DATEPART(WEEK, p.fecha)
+        INNER JOIN gestion.Prorrateo pr 
+            ON pr.id_unidad_funcional = p.id_unidad_funcional
+            AND pr.id_consorcio_unidad_funcional = p.id_consorcio_unidad_funcional
+        INNER JOIN gestion.Expensa e
+            ON e.id = pr.id_expensa
+        WHERE YEAR(p.fecha) = @anioActual
+          AND MONTH(p.fecha) BETWEEN @mesInicio AND @mesFin
+          AND (@idConsorcio IS NULL OR p.id_consorcio_unidad_funcional = @idConsorcio)
     ),
-    TipoGastoConsorcio AS (
+
+    -- Se calcula cuanto del pago fue Ordinario y cuanto Extraordinario
+    PagosClasificados AS (
+        SELECT
+            id_consorcio,
+            DATEPART(YEAR, fecha) AS Anio,
+            DATEPART(WEEK, fecha) AS Semana,
+            CASE 
+                WHEN TotalExpensaMes > 0 
+                    THEN ImportePago * (monto_ordinarias / TotalExpensaMes)
+                ELSE 0
+            END AS PagoOrdinario,
+            CASE 
+                WHEN TotalExpensaMes > 0 
+                    THEN ImportePago * (monto_extraordinarias / TotalExpensaMes)
+                ELSE 0
+            END AS PagoExtraordinario,
+            ImportePago AS PagoTotal
+        FROM PagosConProporcion
+    ),
+
+    --Se agrupa por semana
+    RecaudacionSemanal AS (
         SELECT 
-            g.id_consorcio,
-            MAX(CASE WHEN tg.es_extraordinario = 0 THEN 1 ELSE 0 END) AS TieneOrdinario,
-            MAX(CASE WHEN tg.es_extraordinario = 1 THEN 1 ELSE 0 END) AS TieneExtraordinario
-        FROM gestion.Gasto g
-        INNER JOIN gestion.Tipo_Gasto tg ON tg.id = g.id_tipo_gasto
-        WHERE g.anio = @anioActual
-          AND g.mes BETWEEN @mesInicio AND @mesFin
-          AND (@idConsorcio IS NULL OR g.id_consorcio = @idConsorcio)
-        GROUP BY g.id_consorcio
+            id_consorcio,
+            Anio,
+            Semana,
+            SUM(PagoOrdinario) AS TotalOrdinario,
+            SUM(PagoExtraordinario) AS TotalExtraordinario,
+            SUM(PagoTotal) AS TotalSemanal
+        FROM PagosClasificados
+        GROUP BY id_consorcio, Anio, Semana
     )
+
     SELECT 
-        r.id_consorcio,
-        r.Anio,
-        r.Semana,
-        CASE WHEN t.TieneOrdinario = 1 THEN r.TotalPesos ELSE 0 END AS Monto_Ordinario,
-        CASE WHEN t.TieneExtraordinario = 1 THEN r.TotalPesos ELSE 0 END AS Monto_Extraordinario,
-        r.TotalPesos AS Total_Semanal,
-        AVG(r.TotalPesos) OVER (PARTITION BY r.id_consorcio) AS Promedio_Periodo,
-        SUM(r.TotalPesos) OVER (
-            PARTITION BY r.id_consorcio 
-            ORDER BY r.Anio, r.Semana
-        ) AS Acumulado_Progresivo
-    FROM RecaudacionSemanal r
-    LEFT JOIN TipoGastoConsorcio t ON t.id_consorcio = r.id_consorcio
-    ORDER BY r.id_consorcio, r.Anio, r.Semana;
+        id_consorcio,
+        Anio,
+        Semana,
+		CAST(TotalOrdinario AS DECIMAL(18,2)) AS Monto_Ordinario,
+		CAST(TotalExtraordinario AS DECIMAL(18,2)) AS Monto_Extraordinario,
+		CAST(TotalSemanal AS DECIMAL(18,2)) AS Total_Semanal,
+		CAST(AVG(TotalSemanal) OVER (PARTITION BY id_consorcio) AS DECIMAL(18,2)) AS Promedio_Periodo,
+		CAST(SUM(TotalSemanal) OVER (
+				PARTITION BY id_consorcio 
+				ORDER BY Anio, Semana
+			) AS DECIMAL(18,2)) AS Acumulado_Progresivo
+    FROM RecaudacionSemanal
+    ORDER BY id_consorcio, Anio, Semana;
+
 END;
 GO
-
 
 --REPORTE 2
 /*Presente el total de 
@@ -124,54 +150,108 @@ GO
 CREATE OR ALTER PROCEDURE gestion.sp_reporte_recaudacion_por_procedencia
    @anioInicio INT,
    @anioFin INT,
-   @idConsorcio INT = NULL
+   @idConsorcio INT
 AS
 BEGIN
     SET NOCOUNT ON;
 
-    WITH RecaudacionMensualConsorcio AS (
-        SELECT 
+    --Pagos por UF y mes
+    ;WITH PagosMesUF AS (
+        SELECT
             uf.id_consorcio,
+            p.id_unidad_funcional,
             YEAR(p.fecha) AS Anio,
             MONTH(p.fecha) AS Mes,
-            SUM(p.importe) AS importe_total
+            SUM(p.importe) AS PagosMes
         FROM gestion.Pago p
-        JOIN gestion.Unidad_Funcional uf 
-            ON uf.id = p.id_unidad_funcional 
-            AND uf.id_consorcio = p.id_consorcio_unidad_funcional
+        INNER JOIN gestion.Unidad_Funcional uf
+            ON uf.id = p.id_unidad_funcional
+           AND uf.id_consorcio = p.id_consorcio_unidad_funcional
         WHERE YEAR(p.fecha) BETWEEN @anioInicio AND @anioFin
-          AND (@idConsorcio IS NULL OR uf.id_consorcio = @idConsorcio)
-        GROUP BY uf.id_consorcio, YEAR(p.fecha), MONTH(p.fecha)
+          AND uf.id_consorcio = @idConsorcio
+        GROUP BY uf.id_consorcio, p.id_unidad_funcional, YEAR(p.fecha), MONTH(p.fecha)
+    ),
+
+    --Prorrateo mensual por UF (montos de expensa del mes)
+    ProrrateoMesUF AS (
+        SELECT
+            e.id_consorcio,
+            e.anio,
+            e.mes,
+            pr.id_unidad_funcional,
+            pr.monto_ordinarias,
+            pr.monto_extraordinarias,
+            pr.interes_mora,
+            (pr.monto_ordinarias + pr.monto_extraordinarias + pr.interes_mora) AS TotalExpensaUF
+        FROM gestion.Expensa e
+        INNER JOIN gestion.Prorrateo pr
+            ON pr.id_expensa = e.id
+        WHERE e.anio BETWEEN @anioInicio AND @anioFin
+          AND (@idConsorcio IS NULL OR e.id_consorcio = @idConsorcio)
+    ),
+
+    --Uno pagos + prorrateo + calculo proporcional
+    Distribucion AS (
+        SELECT
+            p.id_consorcio,
+            p.Anio,
+            p.Mes,
+            CASE 
+                WHEN pr.TotalExpensaUF > 0 
+                    THEN p.PagosMes / pr.TotalExpensaUF 
+                ELSE 0 
+            END AS ProporcionPagada,
+            pr.monto_ordinarias,
+            pr.monto_extraordinarias
+        FROM ProrrateoMesUF pr
+        LEFT JOIN PagosMesUF p
+            ON p.id_consorcio = pr.id_consorcio
+           AND p.id_unidad_funcional = pr.id_unidad_funcional
+           AND p.Anio = pr.anio
+           AND p.Mes = pr.mes
+    ),
+
+    --Recaudación proporcional mensual total del consorcio
+    RecaudacionMensual AS (
+        SELECT
+            id_consorcio,
+            Anio,
+            Mes,
+            SUM(ProporcionPagada * monto_ordinarias) AS Ordinario,
+            SUM(ProporcionPagada * monto_extraordinarias) AS Extraordinario
+        FROM Distribucion
+        GROUP BY id_consorcio, Anio, Mes
     )
 
+    /*PIVOT*/
     SELECT 
         CONCAT(Mes, '/', Anio) AS Periodo,
-        ISNULL([Ordinario], 0) AS Ordinario,
-        ISNULL([Extraordinario], 0) AS Extraordinario
+        CAST(ISNULL([Ordinario], 0) AS DECIMAL(18,2)) AS Ordinario,
+        CAST(ISNULL([Extraordinario], 0) AS DECIMAL(18,2)) AS Extraordinario
     FROM (
-        SELECT 
-            rmc.Anio,
-            rmc.Mes,
-            CASE 
-                WHEN tg.es_extraordinario = 1 THEN 'Extraordinario'
-                ELSE 'Ordinario'
-            END AS TipoGasto,
-            MAX(rmc.importe_total) AS TotalRecaudado
-        FROM RecaudacionMensualConsorcio rmc
-        LEFT JOIN gestion.Gasto g 
-            ON g.id_consorcio = rmc.id_consorcio
-        LEFT JOIN gestion.Tipo_Gasto tg 
-            ON tg.id = g.id_tipo_gasto
-        GROUP BY rmc.Anio, rmc.Mes, tg.es_extraordinario, rmc.importe_total
+        SELECT
+            Anio,
+            Mes,
+            'Ordinario' AS Tipo,
+            Ordinario AS Importe
+        FROM RecaudacionMensual
+        UNION ALL
+        SELECT
+            Anio,
+            Mes,
+            'Extraordinario',
+            Extraordinario
+        FROM RecaudacionMensual
     ) AS src
     PIVOT (
-        MAX(TotalRecaudado)
-        FOR TipoGasto IN ([Ordinario], [Extraordinario])
+        SUM(Importe)
+        FOR Tipo IN ([Ordinario],[Extraordinario])
     ) AS pvt
+	WHERE Anio IS NOT NULL AND Mes IS NOT NULL
     ORDER BY Anio, Mes;
-END;
-GO
 
+END
+GO
 /*reporte 4: Incluye xml
 Obtenga los 5 (cinco) meses de mayores gastos y los 5 (cinco) de mayores ingresos.
 */
