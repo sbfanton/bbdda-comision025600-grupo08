@@ -19,10 +19,19 @@ go
 EXEC gestion.sp_importar_consorcios
      @pathConsorcios = N'C:\Users\yo\Documents\A-Main\Universidad\Base de Datos Aplicadas\bbdda-comision025600-grupo08\Material_TP\Miel\Consorcio/datos-varios-consorcios.csv';
 go
+
+EXEC gestion.sp_importar_consorcios
+     @pathConsorcios = N'/var/opt/mssql/pruebas/datos-varios-consorcios.csv';
+go
+
     
 -- Unidad_Funcional
 EXEC gestion.sp_importar_unidades_funcionales
      @path = N'C:\Users\yo\Documents\A-Main\Universidad\Base de Datos Aplicadas\bbdda-comision025600-grupo08\Material_TP\Miel\Consorcio/UF por consorcio.txt'
+GO 
+
+EXEC gestion.sp_importar_unidades_funcionales
+     @path = N'/var/opt/mssql/pruebas/UF por consorcio.txt'
 GO 
 
 -- Persona
@@ -32,10 +41,19 @@ EXEC gestion.sp_importar_personas
      @pathPersonasDatos = N'C:\Users\yo\Documents\A-Main\Universidad\Base de Datos Aplicadas\bbdda-comision025600-grupo08\Material_TP\Miel\Consorcio/Inquilino-propietarios-datos.csv',
      @pathPersonasUF = N'C:\Users\yo\Documents\A-Main\Universidad\Base de Datos Aplicadas\bbdda-comision025600-grupo08\Material_TP\Miel\Consorcio/Inquilino-propietarios-UF.csv';
 go
+
+EXEC gestion.sp_importar_personas
+     @pathPersonasDatos = N'/var/opt/mssql/pruebas/Inquilino-propietarios-datos.csv',
+     @pathPersonasUF = N'/var/opt/mssql/pruebas/Inquilino-propietarios-UF.csv';
+go
     
 -- Pago
 EXEC gestion.sp_importar_pagos
      @path = N'C:\Users\yo\Documents\A-Main\Universidad\Base de Datos Aplicadas\bbdda-comision025600-grupo08\Material_TP\Miel\Consorcio/pagos_consorcios.csv';
+go
+
+EXEC gestion.sp_importar_pagos
+     @path = N'/var/opt/mssql/pruebas/pagos_consorcios.csv';
 go
     
 -- Tipos gastos ordinarios y proveedores
@@ -43,10 +61,19 @@ EXEC gestion.sp_importar_tipos_gastos_y_proveedores
      @path =  N'C:\Users\yo\Documents\A-Main\Universidad\Base de Datos Aplicadas\bbdda-comision025600-grupo08\Material_TP\Miel\Consorcio/datos-varios-proveedores.csv',
     @rowTerminator = '\r';
 go
+
+EXEC gestion.sp_importar_tipos_gastos_y_proveedores
+     @path =  N'/var/opt/mssql/pruebas/datos-varios-proveedores.csv',
+    @rowTerminator = '\r';
+go
    
 -- Tipos gastos extraordinarios y proveedores
 EXEC gestion.sp_importar_tipos_gastos_y_proveedores
      @path =  N'C:\Users\yo\Documents\A-Main\Universidad\Base de Datos Aplicadas\bbdda-comision025600-grupo08\Material_TP\Miel\Consorcio/extraordinario.csv', @extraordinarios = 1;
+go
+
+EXEC gestion.sp_importar_tipos_gastos_y_proveedores
+     @path =  N'/var/opt/mssql/pruebas/extraordinario.csv', @extraordinarios = 1;
 go
     
 -- Gastos ordinarios
@@ -56,9 +83,21 @@ SELECT @json = BulkColumn FROM OPENROWSET(BULK 'C:\Users\yo\Documents\A-Main\Uni
 exec gestion.sp_importar_gastos_ordinarios_anio_actual @jsonData = @json
 go
 
+DECLARE @json NVARCHAR(MAX)
+SELECT @json = BulkColumn FROM OPENROWSET(BULK '/var/opt/mssql/pruebas/Servicios.Servicios.json', SINGLE_CLOB) AS jsonn
+--print(@json)
+exec gestion.sp_importar_gastos_ordinarios_anio_actual @jsonData = @json
+go
+
 -- Gastos extraordinarios
 DECLARE @json2 NVARCHAR(MAX)
 SELECT @json2 = BulkColumn FROM OPENROWSET(BULK 'C:\Users\yo\Documents\A-Main\Universidad\Base de Datos Aplicadas\bbdda-comision025600-grupo08\Material_TP\Miel\Consorcio/Servicios.ServiciosExtraordinarios.json', SINGLE_CLOB) AS jsonn
+--print(@json2)
+exec gestion.sp_importar_gastos_extraordinarios_anio_actual @jsonData = @json2
+go
+
+DECLARE @json2 NVARCHAR(MAX)
+SELECT @json2 = BulkColumn FROM OPENROWSET(BULK '/var/opt/mssql/pruebas/Servicios.ServiciosExtraordinarios.json', SINGLE_CLOB) AS jsonn
 --print(@json2)
 exec gestion.sp_importar_gastos_extraordinarios_anio_actual @jsonData = @json2
 go
