@@ -10,12 +10,12 @@ create or alter procedure gestion.sp_importar_tipos_documentos
 AS 
 BEGIN
     SET NOCOUNT ON;
-
+/*
     BEGIN TRY
       SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 
       BEGIN TRANSACTION;
-
+*/
         INSERT INTO gestion.Tipo_Documento (id, descripcion)
         SELECT v.id, v.descripcion
         FROM (
@@ -33,12 +33,14 @@ BEGIN
             FROM gestion.Tipo_Documento td 
             WHERE td.id = v.id
         );
+        /*
         COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
         ROLLBACK TRANSACTION;
         THROW;
     END CATCH
+    */
 END
 go
 
@@ -54,11 +56,12 @@ CREATE OR ALTER PROCEDURE gestion.sp_importar_consorcios
 AS
 BEGIN
     SET NOCOUNT ON;
-
+/*
     BEGIN TRY
         SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 
         BEGIN TRANSACTION;
+        */
         IF OBJECT_ID('tempdb..#ConsorcioOrigen') IS NOT NULL DROP TABLE #ConsorcioOrigen;
 
         CREATE TABLE #ConsorcioOrigen (
@@ -127,12 +130,14 @@ BEGIN
         drop table #ConsorcioOrigen
 
         PRINT 'Carga completada correctamente.'
+        /*
         COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
         ROLLBACK TRANSACTION;
         THROW;
     END CATCH
+    */
 END
 GO
 
@@ -148,11 +153,12 @@ CREATE OR ALTER PROCEDURE gestion.sp_importar_unidades_funcionales
 AS
 BEGIN
     SET NOCOUNT ON;
+    /*
     BEGIN TRY
         SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 
         BEGIN TRANSACTION;
-
+*/
         IF OBJECT_ID('tempdb..#tmp_unidades') IS NOT NULL DROP TABLE #tmp_unidades;
 
         CREATE TABLE #tmp_unidades (
@@ -214,12 +220,14 @@ BEGIN
             )
 
         DROP TABLE #tmp_unidades
+        /*
         COMMIT TRANSACTION
     END TRY
     BEGIN CATCH
         ROLLBACK TRANSACTION;
         THROW;
     END CATCH
+    */
 END
 GO
 
@@ -240,12 +248,12 @@ CREATE OR ALTER PROCEDURE gestion.sp_importar_personas
 AS
 BEGIN
     SET NOCOUNT ON;
-
+/*
     BEGIN TRY
         SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 
         BEGIN TRANSACTION;
-   
+   */
         IF OBJECT_ID('tempdb..#tmp_personas') IS NOT NULL DROP TABLE #tmp_personas;
         IF OBJECT_ID('tempdb..#tmp_personas_UF') IS NOT NULL DROP TABLE #tmp_personas_UF;
 
@@ -415,15 +423,16 @@ BEGIN
             DROP TABLE #PersonasUF
             DROP TABLE #tmp_personas
             DROP TABLE #tmp_personas_UF
+            /*
            COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
         ROLLBACK TRANSACTION;
         THROW;
     END CATCH
+    */
 END
 GO
-
 ----------------------------------------------------
 ----------------------------------------------------
 
@@ -436,12 +445,12 @@ CREATE OR ALTER PROCEDURE gestion.sp_importar_pagos
 AS
 BEGIN
     SET NOCOUNT ON;
-
+/*
     BEGIN TRY
         SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 
         BEGIN TRANSACTION;
-   
+   */
 
         IF OBJECT_ID('tempdb..#tmp_pagos') IS NOT NULL DROP TABLE #tmp_pagos;
 
@@ -521,12 +530,14 @@ BEGIN
         );
 
         drop table #tmp_pagos
+        /*
     COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
         ROLLBACK TRANSACTION;
         THROW;
     END CATCH
+    */
 END
 GO
    
@@ -560,12 +571,12 @@ CREATE OR ALTER PROCEDURE gestion.sp_importar_tipos_gastos_y_proveedores
 AS
 BEGIN
     SET NOCOUNT ON;
-
+/*
     BEGIN TRY
         SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 
         BEGIN TRANSACTION;
-
+*/
         IF OBJECT_ID('tempdb..#tmp_tipos_gastos') IS NOT NULL DROP TABLE #tmp_tipos_gastos;
 
         CREATE TABLE #tmp_tipos_gastos (
@@ -625,12 +636,14 @@ BEGIN
         )
 
         drop table #tmp_tipos_gastos
+        /*
         COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
         ROLLBACK TRANSACTION;
         THROW;
     END CATCH
+    */
 END
 GO
 
@@ -680,11 +693,12 @@ create or alter procedure gestion.sp_importar_gastos_ordinarios_anio_actual
 	@jsonData NVARCHAR(MAX)
 AS 
 BEGIN 
+/*
     BEGIN TRY
         SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 
         BEGIN TRANSACTION;
-
+*/
 	
         IF OBJECT_ID('tempdb..#GastosJson') IS NOT NULL DROP TABLE #GastosJson
         IF OBJECT_ID('tempdb..#Mes') IS NOT NULL DROP TABLE #Mes
@@ -780,12 +794,14 @@ BEGIN
         
         drop table #Mes
         drop table #GastosJson
+        /*
     COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
         ROLLBACK TRANSACTION;
         THROW;
     END CATCH
+    */
 END
 GO
 
@@ -794,11 +810,12 @@ create or alter procedure gestion.sp_importar_gastos_extraordinarios_anio_actual
 	@jsonData NVARCHAR(MAX)
 AS 
 BEGIN 
+/*
     BEGIN TRY
         SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 
         BEGIN TRANSACTION;
-        
+        */
         IF OBJECT_ID('tempdb..#GastosJson') IS NOT NULL DROP TABLE #GastosJson
         IF OBJECT_ID('tempdb..#Mes') IS NOT NULL DROP TABLE #Mes
         
@@ -886,12 +903,14 @@ BEGIN
         
         drop table #Mes
         drop table #GastosJson
+        /*
      COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
         ROLLBACK TRANSACTION;
         THROW;
     END CATCH
+    */
 END
 GO
 
@@ -907,11 +926,12 @@ create or alter procedure gestion.sp_generar_expensa
     @anio SMALLINT
 AS 
 BEGIN 
+/*
     BEGIN TRY
         SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 
         BEGIN TRANSACTION;
-
+*/
         IF @id_consorcio IS NULL
             THROW 50000, 'Debe indicar el consorcio', 1;
         IF @mes IS NULL or @anio IS NULL
@@ -969,13 +989,14 @@ BEGIN
             @total_gastos_extraordinarios,
             @ingresos
         )
-
+/*
      COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
         ROLLBACK TRANSACTION;
         THROW;
     END CATCH
+    */
 END
 GO
 
@@ -1073,11 +1094,12 @@ create or alter procedure gestion.sp_generar_prorrateo
     @anio SMALLINT
 AS 
 BEGIN 
+/*
     BEGIN TRY
         SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
 
         BEGIN TRANSACTION;
-
+*/
         IF @id_consorcio IS NULL
             THROW 50000, 'Debe indicar el consorcio', 1;
         IF @mes IS NULL or @anio IS NULL
@@ -1142,15 +1164,16 @@ BEGIN
                 else 0
             end
         as decimal(12,2)) as interes_mora
-        from ExpensaDistribuida ed;
+        from ExpensaDistribuida ed
         
-
+/*
      COMMIT TRANSACTION;
     END TRY
     BEGIN CATCH
         if @@trancount > 0 rollback transaction;
         THROW;
     END CATCH
+    */
 END
 GO
 
