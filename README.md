@@ -85,7 +85,7 @@ Estas carpetas incluyen:
 ## 👨‍🎓 Integrantes del grupo
 
 - Cazal, Leila Abigail / *leilacazal*
-- Fanton, Sol Belén / *sbfanton*, *Sol Fanton*
+- Fanton, Sol Belén / *sbfanton*, *Sol Fanton* (este segundo nombre de usuario es porque localmente git ha tomado el nombre de autor que usé en otros proyectos)
 - Castro, Ezequiel Alejandro / *EzequielC-git*
 - Grance Zenteno, Lucas Rodrigo / *zetta-2*
 
