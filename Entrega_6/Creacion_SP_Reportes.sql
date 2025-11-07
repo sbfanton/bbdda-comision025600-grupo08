@@ -85,7 +85,7 @@ BEGIN
                  uf.depto
             ) AS Departamento,
             MONTH(p.fecha) AS Mes,
-            SUM(p.importe) AS Total
+            SUM(p.importe) AS Total -- ?
         FROM gestion.Pago p
         INNER JOIN gestion.Unidad_Funcional uf 
             ON uf.id = p.id_unidad_funcional 
@@ -93,7 +93,7 @@ BEGIN
         WHERE YEAR(p.fecha) = @anio
           AND (@idConsorcio IS NULL OR uf.id_consorcio = @idConsorcio)
           AND (@idUnidadFuncional IS NULL OR uf.id = @idUnidadFuncional)
-        GROUP BY uf.id_consorcio, uf.id, uf.piso, uf.depto, MONTH(p.fecha)
+        GROUP BY uf.id_consorcio, uf.id, uf.piso, uf.depto, MONTH(p.fecha) -- ?
     )
     SELECT 
         Departamento,

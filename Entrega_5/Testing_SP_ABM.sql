@@ -5,8 +5,6 @@ GO
 		/*TESTING*/
 ---------------------------------
 	
---------------------LUCAS-------------------------------------------------------
-
 ------------------------------------------------------------------
 		/*PRUEBA DE LAS SP DE TIPO_DOC*/
 ------------------------------------------------------------------
@@ -99,13 +97,13 @@ EXEC gestion.sp_alta_Unidad_Funcional_Persona
 -- No existe la relación uf_persona
 EXEC gestion.sp_modificar_Unidad_Funcional_Persona
     @id_unidad_funcional = 999, @id_consorcio_unidad_funcional = 4,
-    @id_tipo_doc_persona = 'DNI', @nro_doc_persona = 29256383,
+    @id_persona = 1,
     @fecha_desde = '2024-01-01', @fecha_hasta = NULL, @es_inquilino = 1;
 
 -- Caso exitoso
 EXEC gestion.sp_modificar_Unidad_Funcional_Persona
     @id_unidad_funcional = 1, @id_consorcio_unidad_funcional = 4,
-    @id_tipo_doc_persona = 'DNI', @nro_doc_persona = 29256383,
+    @id_persona = 1, -- CORREGIR !
     @fecha_desde = '2024-01-01', @fecha_hasta = NULL, @es_inquilino = 1;
 
 ----------BAJAS---------------
@@ -113,12 +111,12 @@ EXEC gestion.sp_modificar_Unidad_Funcional_Persona
 -- Relación inexistente
 EXEC gestion.sp_eliminar_Unidad_Funcional_Persona 
     @id_unidad_funcional = 1, @id_consorcio_unidad_funcional = 4,
-    @id_tipo_doc_persona = 'DNI', @nro_doc_persona = 12345678;
+    @id_persona = 1;
 
 -- Caso exitoso
 EXEC gestion.sp_eliminar_Unidad_Funcional_Persona 
     @id_unidad_funcional = 1, @id_consorcio_unidad_funcional = 4,
-    @id_tipo_doc_persona = 'DNI', @nro_doc_persona = 29256383;
+    @id_persona = 1;
 
 -----------------------------------------
 -----CUENTA BANCARIA_UF LOTES-----

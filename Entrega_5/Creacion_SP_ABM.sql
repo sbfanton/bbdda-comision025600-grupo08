@@ -57,7 +57,7 @@ GO
 --------------------------------------------------------------------------------
 -- Persona (PK: nro_doc, id_tipo_documento)
 --------------------------------------------------------------------------------
-select top 10* from gestion.persona
+--select top 10* from gestion.persona
 
 CREATE OR ALTER PROCEDURE gestion.sp_alta_Persona
 	@nro_doc INT,
@@ -363,8 +363,7 @@ GO
 CREATE OR ALTER PROCEDURE gestion.sp_alta_Unidad_Funcional_Persona
     @id_unidad_funcional INT,
     @id_consorcio_unidad_funcional INT,
-    @id_tipo_doc_persona VARCHAR(5),
-    @nro_doc_persona INT,
+    @id_persona BIGINT,
     @fecha_desde DATE = NULL,
     @fecha_hasta DATE = NULL,
     @es_inquilino BIT
@@ -375,15 +374,14 @@ BEGIN
     IF NOT EXISTS(SELECT 1 FROM gestion.Unidad_Funcional WHERE id = @id_unidad_funcional AND id_consorcio = @id_consorcio_unidad_funcional)
         THROW 50000, 'Unidad_Funcional no existe.', 1;
 
-    IF NOT EXISTS(SELECT 1 FROM gestion.Persona WHERE nro_doc = @nro_doc_persona AND id_tipo_documento = @id_tipo_doc_persona)
+    IF NOT EXISTS(SELECT 1 FROM gestion.Persona WHERE id = @id_persona)
         THROW 50000, 'Persona no existe.', 1;
 
     IF EXISTS(
         SELECT 1 FROM gestion.Unidad_Funcional_Persona
         WHERE id_unidad_funcional = @id_unidad_funcional
           AND id_consorcio_unidad_funcional = @id_consorcio_unidad_funcional
-          AND id_tipo_doc_persona = @id_tipo_doc_persona
-          AND nro_doc_persona = @nro_doc_persona
+          AND id_persona = @id_persona
     )
         THROW 50000, 'La relación Unidad_Funcional_Persona ya existe.', 1;
 
@@ -391,8 +389,8 @@ BEGIN
         THROW 50000, 'fecha_desde no puede ser mayor que fecha_hasta.', 1;*/
 
     INSERT INTO gestion.Unidad_Funcional_Persona
-    (id_unidad_funcional, id_consorcio_unidad_funcional, id_tipo_doc_persona, nro_doc_persona, fecha_desde, fecha_hasta, es_inquilino)
-    VALUES (@id_unidad_funcional, @id_consorcio_unidad_funcional, @id_tipo_doc_persona, @nro_doc_persona, @fecha_desde, @fecha_hasta, @es_inquilino);
+    (id_unidad_funcional, id_consorcio_unidad_funcional, id_persona, fecha_desde, fecha_hasta, es_inquilino)
+    VALUES (@id_unidad_funcional, @id_consorcio_unidad_funcional, @id_persona, @fecha_desde, @fecha_hasta, @es_inquilino);
 END
 GO
 
@@ -401,8 +399,7 @@ GO
 CREATE OR ALTER PROCEDURE gestion.sp_modificar_Unidad_Funcional_Persona
     @id_unidad_funcional INT,
     @id_consorcio_unidad_funcional INT,
-    @id_tipo_doc_persona VARCHAR(5),
-    @nro_doc_persona INT,
+    @id_persona bigint,
     @fecha_desde DATE = NULL,
     @fecha_hasta DATE = NULL,
     @es_inquilino BIT
@@ -414,8 +411,7 @@ BEGIN
         SELECT 1 FROM gestion.Unidad_Funcional_Persona
         WHERE id_unidad_funcional = @id_unidad_funcional
           AND id_consorcio_unidad_funcional = @id_consorcio_unidad_funcional
-          AND id_tipo_doc_persona = @id_tipo_doc_persona
-          AND nro_doc_persona = @nro_doc_persona
+          AND id_persona = @id_persona
     )
         THROW 50000, 'Unidad_Funcional_Persona no encontrada.', 1;
 
@@ -428,8 +424,7 @@ BEGIN
         es_inquilino = @es_inquilino
     WHERE id_unidad_funcional = @id_unidad_funcional
       AND id_consorcio_unidad_funcional = @id_consorcio_unidad_funcional
-      AND id_tipo_doc_persona = @id_tipo_doc_persona
-      AND nro_doc_persona = @nro_doc_persona;
+      AND id_persona = @id_persona;
 END
 GO
 
@@ -438,8 +433,7 @@ GO
 CREATE OR ALTER PROCEDURE gestion.sp_eliminar_Unidad_Funcional_Persona
     @id_unidad_funcional INT,
     @id_consorcio_unidad_funcional INT,
-    @id_tipo_doc_persona VARCHAR(5),
-    @nro_doc_persona INT
+    @id_persona bigint
 AS
 BEGIN
     SET NOCOUNT ON;
@@ -449,16 +443,14 @@ BEGIN
         FROM gestion.Unidad_Funcional_Persona
         WHERE id_unidad_funcional = @id_unidad_funcional
           AND id_consorcio_unidad_funcional = @id_consorcio_unidad_funcional
-          AND id_tipo_doc_persona = @id_tipo_doc_persona
-          AND nro_doc_persona = @nro_doc_persona
+          AND id_persona = @id_persona
     )
 	THROW 50000, 'Unidad_Funcional_Persona no encontrada.', 1;
 
     DELETE FROM gestion.Unidad_Funcional_Persona
     WHERE id_unidad_funcional = @id_unidad_funcional
       AND id_consorcio_unidad_funcional = @id_consorcio_unidad_funcional
-      AND id_tipo_doc_persona = @id_tipo_doc_persona
-      AND nro_doc_persona = @nro_doc_persona;
+      AND id_persona = @id_persona;
 END
 GO
 
