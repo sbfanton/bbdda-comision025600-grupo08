@@ -1,3 +1,27 @@
+/*
+
+- Materia: Bases de Datos Aplicadas
+
+- Comisión: 02-5600 - Viernes Tarde
+
+- Fecha: 7/11/2025
+
+- Grupo: 8
+
+- Integrantes:
+Cazal, Leila Abigail - 42023980
+Fanton, Sol Belén - 38789602
+Castro, Ezequiel Alejandro - 45239803
+Grance Zenteno, Lucas Rodrigo - 43406784
+
+- Enunciado:
+*** Entrega 6 ***
+Cada reporte debe demostrarse con la ejecución de una consulta, que deberá estar incluida en un store procedure. El SP admitirá parámetros (al menos tres) para filtrar los resultados, quedando a criterio del grupo determinar los mismos. Pueden combinar en un script la creación de todos los reportes, luego en otro script harían las invocaciones. (...)
+
+A continuación, la creación de cada SP de reporte cuenta con su consigna correspondiente.
+
+*/
+
 USE Com5600G08;
 Go
 
