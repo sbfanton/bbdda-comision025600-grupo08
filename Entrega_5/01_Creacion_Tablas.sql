@@ -1,3 +1,33 @@
+/*
+
+- Materia: Bases de Datos Aplicadas
+
+- Comisión: 02-5600 - Viernes Tarde
+
+- Fecha: 7/11/2025
+
+- Grupo: 8
+
+- Integrantes:
+Cazal, Leila Abigail - 42023980
+Fanton, Sol Belén - 38789602
+Castro, Ezequiel Alejandro - 45239803
+Grance Zenteno, Lucas Rodrigo - 43406784
+
+- Enunciado:
+
+*** Entrega 5 ***
+Base de datos lineamientos generales
+Se requiere que importe toda la información antes mencionada a la base de datos:
+•Genere los objetos necesarios (store procedures, funciones, etc.) para importar los archivos antes mencionados. Tenga en cuenta que cada mes se recibirán archivos de novedades con la misma estructura, pero datos nuevos para agregar a cada maestro.
+(...)
+•La estructura/esquema de las tablas a generar será decisión suya. Puede que deba realizar procesos de transformación sobre los maestros recibidos para adaptarlos a la estructura requerida. Estas adaptaciones deberán hacerla en la DB y no en los archivos provistos.
+(...)
+
+En este archivo en particular, se crea la base de datos, el esquema y las tablas, con sus constraints correspondientes
+
+*/
+
 -- Creacion de DB y esquema
 use master
 go
