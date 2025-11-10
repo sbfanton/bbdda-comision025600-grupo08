@@ -1,3 +1,28 @@
+/*
+
+- Materia: Bases de Datos Aplicadas
+
+- Comisi贸n: 02-5600 - Viernes Tarde
+
+- Fecha: 7/11/2025
+
+- Grupo: 8
+
+- Integrantes:
+Cazal, Leila Abigail - 42023980
+Fanton, Sol Bel茅n - 38789602
+Castro, Ezequiel Alejandro - 45239803
+Grance Zenteno, Lucas Rodrigo - 43406784
+
+- Enunciado:
+*** Entrega 7 -Requisitos de seguridad *** 
+Asigne los roles correspondientes para poder cumplir con este requisito, seg煤n el 谩rea a la cual pertenece.
+Rol: Administrador general - Acciones: Actualizaci贸n de datos UF, Generaci贸n de reportes (...)
+
+Este archivo corresponde al testing del rol Administrador general
+
+*/
+
 USE Com5600G08
 GO
 
@@ -25,5 +50,6 @@ EXEC gestion.sp_eliminar_Unidad_Funcional_Persona
     @id_persona = 1; --no
 
 EXEC gestion.sp_modificar_Consorcio 
-@id = 999, @nombre = 'Consorcio Editado', @calle = 'Belgrano', @nro = 250, @localidad = 'Mor髇', @provincia = 'Buenos Aires';
+@id = 999, @nombre = 'Consorcio Editado', @calle = 'Belgrano', @nro = 250, @localidad = 'Mor贸n', @provincia = 'Buenos Aires';
+
 --no
