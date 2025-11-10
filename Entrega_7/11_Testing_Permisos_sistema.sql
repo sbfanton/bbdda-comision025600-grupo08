@@ -1,3 +1,29 @@
+/*
+
+- Materia: Bases de Datos Aplicadas
+
+- Comisión: 02-5600 - Viernes Tarde
+
+- Fecha: 7/11/2025
+
+- Grupo: 8
+
+- Integrantes:
+Cazal, Leila Abigail - 42023980
+Fanton, Sol Belén - 38789602
+Castro, Ezequiel Alejandro - 45239803
+Grance Zenteno, Lucas Rodrigo - 43406784
+
+- Enunciado:
+*** Entrega 7 -Requisitos de seguridad *** 
+Asigne los roles correspondientes para poder cumplir con este requisito, según el área a la cual pertenece.
+Rol: Sistemas - Acciones: Generación de reportes  (...)
+
+Este archivo corresponde al testing del rol Sistemas
+
+*/
+
+
 USE Com5600G08
 GO
 
@@ -20,5 +46,6 @@ EXEC gestion.sp_reporte_mayores_ingresos_gastos_xml
 EXEC gestion.sp_reporte_top_morosos --si
 
 EXEC gestion.sp_modificar_Consorcio 
-@id = 999, @nombre = 'Consorcio Editado', @calle = 'Belgrano', @nro = 250, @localidad = 'Mor�n', @provincia = 'Buenos Aires';
+@id = 999, @nombre = 'Consorcio Editado', @calle = 'Belgrano', @nro = 250, @localidad = 'Morón', @provincia = 'Buenos Aires';
+
 --no
