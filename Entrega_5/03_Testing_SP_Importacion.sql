@@ -1,3 +1,31 @@
+/*
+
+- Materia: Bases de Datos Aplicadas
+
+- Comisión: 02-5600 - Viernes Tarde
+
+- Fecha: 7/11/2025
+
+- Grupo: 8
+
+- Integrantes:
+Cazal, Leila Abigail - 42023980
+Fanton, Sol Belén - 38789602
+Castro, Ezequiel Alejandro - 45239803
+Grance Zenteno, Lucas Rodrigo - 43406784
+
+- Enunciado:
+
+*** Entrega 5 ***
+(...)
+El código fuente no debe incluir referencias hardcodeadas a nombres o ubicaciones de archivo. Esto debe permitirse ser provisto por parámetro en la invocación. En el código de ejemplo se verá dónde el grupo decidió ubicar los archivos, pero si cambia el entorno de ejecución debería adaptarse sin modificar el fuente (sí obviamente el script de testing).
+(...)
+
+En este archivo, se encuentran los scripts para realizar la ejecución de los SPs de importación antes generados.
+La ruta de los archivos, que se recibe por parámetro en cada SP, se DEBE cambiar por la correspondiente a la ubicación de los archivos en su PC.
+
+*/
+
 use Com5600G08
 go
 
