@@ -1,3 +1,32 @@
+/*
+
+- Materia: Bases de Datos Aplicadas
+
+- Comisión: 02-5600 - Viernes Tarde
+
+- Fecha: 7/11/2025
+
+- Grupo: 8
+
+- Integrantes:
+Cazal, Leila Abigail - 42023980
+Fanton, Sol Belén - 38789602
+Castro, Ezequiel Alejandro - 45239803
+Grance Zenteno, Lucas Rodrigo - 43406784
+
+- Enunciado:
+*** Entrega 7 -Requisitos de seguridad *** 
+Asigne los roles correspondientes para poder cumplir con este requisito, según el área a la cual pertenece.
+Rol: Administrador general - Acciones: Actualización de datos UF, Generación de reportes 
+Rol: Administrativo Bancario - Acciones: Importación de información bancaria, Generación de reportes
+Rol: Administrativo operativo - Acciones: Actualización de datos UF, Generación de reportes
+Rol: Sistemas - Acciones: Generación de reportes 
+(...)
+
+Este archivo corresponde a la generación de logins, usuarios, roles y grants correspondientes
+
+*/
+
 /*=============================================================
     LIMPIEZA Y CREACIÓN DE LOGINS, USUARIOS, ROLES Y PERMISOS
 =============================================================*/
@@ -250,3 +279,4 @@ JOIN sys.database_principals AS dp
 JOIN sys.objects AS obj
     ON perms.major_id = obj.object_id;
 --------------------------------------------
+
