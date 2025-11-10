@@ -1,3 +1,25 @@
+/*
+
+- Materia: Bases de Datos Aplicadas
+
+- Comisión: 02-5600 - Viernes Tarde
+
+- Fecha: 7/11/2025
+
+- Grupo: 8
+
+- Integrantes:
+Cazal, Leila Abigail - 42023980
+Fanton, Sol Belén - 38789602
+Castro, Ezequiel Alejandro - 45239803
+Grance Zenteno, Lucas Rodrigo - 43406784
+
+- Enunciado:
+
+En este archivo, se encuentran los scripts para realizar la ejecución y testing de los SPs de ABM antes generados. 
+
+*/
+
 USE Com5600G08
 GO
 
@@ -214,4 +236,5 @@ EXEC gestion.sp_eliminar_Pago @id = 99999;
 --Caso exitoso
 EXEC gestion.sp_eliminar_Pago @id = 1;
 EXEC gestion.sp_eliminar_Pago @id = 2;
+
 
