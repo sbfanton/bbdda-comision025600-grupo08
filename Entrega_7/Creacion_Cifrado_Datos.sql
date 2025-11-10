@@ -1,3 +1,31 @@
+/*
+
+- Materia: Bases de Datos Aplicadas
+
+- Comisión: 02-5600 - Viernes Tarde
+
+- Fecha: 7/11/2025
+
+- Grupo: 8
+
+- Integrantes:
+Cazal, Leila Abigail - 42023980
+Fanton, Sol Belén - 38789602
+Castro, Ezequiel Alejandro - 45239803
+Grance Zenteno, Lucas Rodrigo - 43406784
+
+- Enunciado:
+*** Entrega 7 -Requisitos de seguridad *** 
+(...)
+Por otra parte, se requiere que apliquen cifrado a datos sensibles/personales incluidos en el sistema. Lea el material de la unidad 6 disponible en Miel para determinar qué datos en su implementación encajan con esa descripción.
+El cifrado tendrán que aplicarlo a posteriori de la realización de las funciones que manejen los datos mencionados. Por ello tendrán que incorporar scripts de modificación de estructuras de datos, modificación sobre store procedures y vistas y tal vez creación de triggers u otro mecanismo para implementar el cifrado. Este cambio realizado al sistema es “en un solo sentido” y se entiende que al aplicarlo no es reversible. Notar que también deberán modificar los reportes que presenten información cifrada para que sea legible.
+(...)
+
+En este archivo se realiza el cifrado de los campos que se consideraron acordes a la definición de datos personales (DNI, CBU). Se ejecuta el cifrado y se realiza la modificación de SPs correspondientes.
+
+*/
+
+
 USE Com5600G08
 GO
 
